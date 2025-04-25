@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { styled, keyframes } from 'styled-components';
+import * as XLSX from 'xlsx';
 
+// assets - MBTI 이미지
 import isfj from '../assets/ISFJ.png';
 import entj from '../assets/ENTJ.png';
 import istp from '../assets/ISTP.png';
@@ -17,8 +19,12 @@ import infp from '../assets/INFP.jpg';
 import esfp from '../assets/ESFP.jpg';
 import esfj from '../assets/ESFJ.png';
 import isfp from '../assets/ISFP.png';
+import entp from '../assets/ENTP.png';
+
+// assets - 페르소나 랜덤 물음표 카드 이미지
 import card from '../assets/물음표카드.png';
 
+// MBTI 맵
 const allPersonasMap = {
   ISFJ: isfj,
   ENTJ: entj,
@@ -35,13 +41,40 @@ const allPersonasMap = {
   ESFP: esfp,
   ESFJ: esfj,
   ISFP: isfp,
+  ENTP: entp
 };
 
 function MainPage(props) {
   const navigate = useNavigate();
-  const [stage, setStage] = useState('topic');
+  const [stage, setStage] = useState('topic'); // 'topic' : 초기 상태. 주제만 노출 / 'button' : 참가자 확인하기 버튼 노출 / 'cards' : 카드 좌우 흔들리는 애니메이션 / 'reveal' : MBTI 3개 노출
+  const [topics, setTopics] = useState([]);
+  const [selectedTopic, setSelectedTopic] = useState('');
   const [selectedPersonas, setSelectedPersonas] = useState([]);
+  const [roles, setRoles] = useState({ pro: [], con: [] });
 
+  // 토론 주제 엑셀 파일 로드
+  useEffect(() => {
+    const fetchTopics = async () => {
+      try {
+        const response = await fetch('/토론 주제.xlsx');
+        const arrayBuffer = await response.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet);
+        const topicList = json.map(row => Object.values(row)[1]);
+        setTopics(topicList);
+
+        // 최초 주제 선정
+        const rnd = Math.floor(Math.random() * topicList.length);
+        setSelectedTopic(topicList[rnd]);
+      } catch (err) {
+        console.error('토론 주제 로드 실패:', err);
+      }
+    };
+    fetchTopics();
+  }, []);
+
+  // '참가자 확인하기' 버튼 노출 타임
   useEffect(() => {
     const timer = setTimeout(() => {
       setStage('button');
@@ -49,23 +82,32 @@ function MainPage(props) {
     return () => clearTimeout(timer);
   }, []);
 
+  // '참가자 확인하기' 버튼
   const handleButtonClick = () => {
     setStage('cards');
 
+    // MBTI 3개 랜덤 선택
     const types = Object.keys(allPersonasMap);
-    const shuffled = types.sort(() => 0.5 - Math.random());
-    const selected = shuffled.slice(0, 3);
+    const shuffledTypes = [...types].sort(() => 0.5 - Math.random());
+    const selected = shuffledTypes.slice(0, 3);
     setSelectedPersonas(selected);
 
+    // 찬반 역할 분배(MBTI 3개랑 user -> 찬2, 반2)
+    const participants = [...selected, 'User'];
+    const shuffledParts = [...participants].sort(() => 0.5 - Math.random());
+    const pro = shuffledParts.slice(0, 2);
+    const con = shuffledParts.slice(2, 4);
+    setRoles({ pro, con });
+
+    // 카드 노출 타임
     setTimeout(() => setStage('reveal'), 3000);
   };
-  
 
     return (
         <Container>
             <ContentWrapper>
               <TopicText moveUp={stage !== 'topic'}>
-                오늘의 토론 주제는 <strong>“인공지능 기술이 인간을 대체할 수 있을까?”</strong> 입니다.
+                오늘의 토론 주제는 <strong>“{selectedTopic}”</strong> 입니다. 
               </TopicText>
 
               {stage === 'button' && (
@@ -99,7 +141,15 @@ function MainPage(props) {
 
                   {stage === 'reveal' && (
                     <FadeInWrapper>
-                      <Button onClick={() => navigate("/discussion")}>토론 참여하기</Button>
+                      <Button
+                        onClick={() =>
+                          navigate('/discussion', {
+                            state: { topic: selectedTopic, personas: selectedPersonas, roles },
+                          })
+                        }
+                      >
+                        토론 참여하기
+                      </Button>
                     </FadeInWrapper>
                   )}
                 </>
@@ -161,13 +211,6 @@ const slideCards = keyframes`
   90% { transform: translateX(-5px); }
   100% { transform: translateX(0); }
 `;
-
-// const CardScrollArea = styled.div`
-//   width: 100vw;
-//   overflow: hidden;
-//   display: flex;
-//   justify-content: center;
-// `;
 
 const CardContainer = styled.div`
   display: flex;
