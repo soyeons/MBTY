@@ -94,9 +94,9 @@ function MainPage(props) {
 
     // 찬반 역할 분배(MBTI 3개랑 user -> 찬2, 반2)
     const participants = [...selected, 'User'];
-    const shuffledParts = [...participants].sort(() => 0.5 - Math.random());
-    const pro = shuffledParts.slice(0, 2);
-    const con = shuffledParts.slice(2, 4);
+    const shuffledParts = [...participants].sort(() => 0.5 - Math.random()); // 무작위 랜덤으로 섞고
+    const pro = shuffledParts.slice(0, 2); // 앞 두 명: 찬성
+    const con = shuffledParts.slice(2, 4); // 뒤 두 명: 반대
     setRoles({ pro, con });
 
     // 카드 노출 타임
@@ -133,7 +133,16 @@ function MainPage(props) {
                             )}
                           </Card>
                           {stage === 'reveal' && i >= 2 && i <= 4 && (
-                            <MBTILabel>{selectedPersonas[i - 2]}</MBTILabel>
+                            <>
+                              <MBTILabel>{selectedPersonas[i - 2]}</MBTILabel>
+                              <RoleLabel>
+                                {roles.pro.includes(selectedPersonas[i - 2])
+                                  ? '찬성'
+                                  : roles.con.includes(selectedPersonas[i - 2])
+                                  ? '반대'
+                                  : ''}
+                              </RoleLabel>
+                            </>
                           )}
                         </CardWrapper>
                       ))}
@@ -257,6 +266,12 @@ const MBTILabel = styled.div`
   font-size: 40px;
   font-weight: bold;
   color: #333;
+`;
+
+const RoleLabel = styled.div`
+  margin-top: 4px;
+  font-size: 25px;
+  color: #666;
 `;
 
 const Button = styled.button`
