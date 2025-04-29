@@ -39,7 +39,7 @@ export default function DiscussionPage() {
   useEffect(() => {
     if (!topic || !personas) return;
 
-    const userIndexInOrder = userStance === '찬성' ? 2 : 3;
+    // const userIndexInOrder = userStance === '찬성' ? 2 : 3;
     const turnOrderTemp = [];
 
     const pros = roles.pro.filter(p => p !== 'User');
@@ -55,32 +55,41 @@ export default function DiscussionPage() {
     (async () => {
       const tempMessages = [];
 
-      // 라운드 1: 첫 발언
-      for (const name of turnOrderTemp) {
-        if (name === 'User') {
-          tempMessages.push({ sender: 'User', content: null, stance: userStance });
-          continue;
+      if(currentRound === 1 && currentTurn === 0) {
+        // 라운드 1: 첫 발언
+        for (const name of turnOrderTemp) {
+          if (name === 'User') {
+            tempMessages.push({ sender: 'User', content: null, stance: userStance });
+            continue;
+          }
+
+          console.log(`(round1) ${name} 발언 생성중`);
+
+          const stance = roles.pro.includes(name) ? '찬성' : '반대';
+          const systemMsg = {
+            role: 'system',
+            content: `당신은 ${name} MBTI를 가진 토론 참가자입니다. 주제: "${topic}". ` +
+                    `${stance} 입장에서, MBTI 성격을 반영해 한두문장으로 첫 발언을 하세요.`,
+          };
+
+          const reply = await callOpenAI([systemMsg]);
+          tempMessages.push({ sender: name, content: reply.content, stance });
         }
 
-        console.log(`(round1) ${name} 발언 생성중`);
-
-        const stance = roles.pro.includes(name) ? '찬성' : '반대';
-        const systemMsg = {
-          role: 'system',
-          content: `당신은 ${name} MBTI를 가진 토론 참가자입니다. 주제: "${topic}". ` +
-                   `${stance} 입장에서, MBTI 성격을 반영해 한두문장으로 첫 발언을 하세요.`,
-        };
-
-        const reply = await callOpenAI([systemMsg]);
-        tempMessages.push({ sender: name, content: reply.content, stance });
+        setAllRoundsMessages(tempMessages);
       }
-
-      setAllRoundsMessages(tempMessages);
+      
     })();
   }, [topic, personas, roles]);
 
   // 하나씩 메시지를 보여주기 위한 효과
   useEffect(() => {
+
+    console.log(`(현재 라운드) ${currentRound} (현재 턴) ${currentTurn} / (누적 메시지) 아래 표시:`);
+    if(currentRound === 2 && currentTurn === 8) return;
+
+    console.log(allRoundsMessages);
+
     if (allRoundsMessages.length === 0 || currentTurn >= allRoundsMessages.length) return;
 
     const msg = allRoundsMessages[currentTurn];
@@ -115,23 +124,25 @@ export default function DiscussionPage() {
 
     setAllRoundsMessages(prev => {
       const updated = [...prev];
-      updated[currentTurn] = newMsg; // 사용자 턴 위치에 직접 삽입
+      updated[currentTurn] = newMsg;
       return updated;
     });
 
     setUserInput('');
     setIsUserTurn(false);
 
-    if(currentTurn < 2) {
-      setCurrentTurn(prev => prev + 1);
-    }else {
+    if(currentRound === 1 && currentTurn === 3) {
+      setCurrentRound(2);
       setCurrentTurn(0);
     }
-    
+    else{
+      setCurrentTurn(prev => prev + 1);
+    }
   };
 
   // 라운드 2 GPT 호출 시 반론, 보완, 요약을 유도하는 프롬프트
   const getRound2Messages = () => {
+
     // Round 1 메시지만 따로 필터링
     const round1OnlyMessages = allRoundsMessages.slice(0, 4).map(msg => ({
       role: msg.sender === 'User' ? 'user' : 'assistant',
@@ -170,7 +181,7 @@ export default function DiscussionPage() {
 
   // 라운드 변경 시 메시지 설정
   useEffect(() => {
-    if (currentRound === 2 && currentTurn ===0) {
+    if (currentRound === 2 && currentTurn === 0) {
       (async () => {
         const round2Messages = await getRound2Messages();
         setAllRoundsMessages(prevMessages => [...prevMessages, ...round2Messages]);
