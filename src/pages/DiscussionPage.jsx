@@ -91,7 +91,7 @@ export default function DiscussionPage() {
       const systemMsg = {
         role: 'system',
         content: `당신은 ${p} MBTI 를 가진 토론 참가자입니다. ` +
-                 `지금까지의 대화내용을 고려하고 본인의 MBTI 성향을 말투와 태도에 반영하며 적절히 발언해주되, 주제에 대한 당신의 ${stance} 입장을 꼭 지켜서 한 두 문장으로만 말해.`,
+                 `본인의 MBTI 성향을 말투와 태도에 반영하며 적절히 발언해주되, 주제에 대한 당신의 ${stance} 입장을 꼭 지켜서 한 두 문장으로만 말해.`,
       };
 
       // GPT 호출에 사용할 메시지 배열 구성
