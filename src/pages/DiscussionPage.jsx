@@ -121,8 +121,13 @@ export default function DiscussionPage() {
 
     setUserInput('');
     setIsUserTurn(false);
-    setCurrentTurn(prev => prev + 1);
 
+    if(currentTurn < 2) {
+      setCurrentTurn(prev => prev + 1);
+    }else {
+      setCurrentTurn(0);
+    }
+    
   };
 
   // 라운드 2 GPT 호출 시 반론, 보완, 요약을 유도하는 프롬프트
