@@ -70,9 +70,9 @@ export default function DiscussionPage() {
     for (const p of personas) {
       const systemMsg = {
         role: 'system',
-        content: `당신은 ${p} MBTI 에이전트입니다. ` +
+        content: `당신은 ${p} MBTI 를 가진 토론 참가자입니다. ` +
                  `${roles.pro.includes(p) ? '찬성' : '반대'} 입장에서, ` +
-                 `이전 대화를 참고하여 답변해주세요.`,
+                 `답변할 때는 자신의 초기 주장(첫 발언)을 강조하고, 상대방을 설득하려는 태도를 유지하십시오.`,
       };
 
       // GPT 호출에 사용할 메시지 배열 구성
