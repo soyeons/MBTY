@@ -96,10 +96,9 @@ export default function DiscussionPage() {
 
     console.log(currentRound, currentTurn);
 
-    if(currentRound === 2 && currentTurn === 6) {
-      return;
-    }else if (currentRound < 2 && currentTurn === 2) {
+    if (currentRound === 1 && currentTurn >= 2) {
       setCurrentRound(2);
+      setCurrentTurn(0)
     }
 
     return () => clearTimeout(timer);
@@ -122,7 +121,6 @@ export default function DiscussionPage() {
       role: msg.sender === 'User' ? 'user' : 'assistant',
       content: msg.content,
     }));
-
     const round2Messages = turnOrder.map(async (name, index) => {
       const stance = roles.pro.includes(name) ? '찬성' : '반대';
       const systemMsg = {
