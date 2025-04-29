@@ -14,7 +14,7 @@ async function callOpenAI(messages) {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-4',
       messages,
       max_tokens: 300,
     }),
@@ -71,8 +71,7 @@ export default function DiscussionPage() {
       const systemMsg = {
         role: 'system',
         content: `당신은 ${p} MBTI 를 가진 토론 참가자입니다. ` +
-                 `${roles.pro.includes(p) ? '찬성' : '반대'} 입장에서, ` +
-                 `답변할 때는 자신의 초기 주장(첫 발언)을 강조하고, 상대방을 설득하려는 태도를 유지하십시오.`,
+                 `본인의 MBTI 성향을 말투와 태도에 반영하며 적절히 발언해주되, 주제에 대한 당신의 ${roles.pro.includes(p) ? '찬성' : '반대'} 입장을 꼭 지켜줘.`,
       };
 
       // GPT 호출에 사용할 메시지 배열 구성
