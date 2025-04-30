@@ -242,11 +242,12 @@ const Message = styled.div`
   ${({ isUser }) => isUser && 'text-align: right;'}
 `;
 const InputArea = styled.div`
-  display: flex;
-  gap: 8px;
+  position: absolute;
+  bottom: 10vh;
 `;
 const TextInput = styled.input`
   flex: 1;
+  width: 90vw;
   padding: 8px;
   font-size: 16px;
 `;
@@ -258,4 +259,5 @@ const SendButton = styled.button`
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  width: 5vw;
 `;
