@@ -300,6 +300,7 @@ const Header = styled.div`
   align-items: center;
   justify-content: center;
 `;
+
 const RoundIndicator = styled.div`
   font-size: 20px;
   font-weight: 700;
@@ -315,12 +316,12 @@ const ChatArea = styled.div`
   //margin-bottom: 16px;
   background-color: #dfdfdf;
 `;
-// const Message = styled.div`
+// const Message = styled.div
 //   ${({ isUser }) => isUser && 'text-align: right;'}
 //   //background-color: grey;
 //   font-size: 24px;
 //   //margin-left: 50px;
-// `;
+// ;
 const InputArea = styled.div`
   display: flex;
   gap: 20px;
