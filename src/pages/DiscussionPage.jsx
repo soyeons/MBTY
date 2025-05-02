@@ -177,7 +177,7 @@ export default function DiscussionPage() {
   };
 
   // 라운드 2 GPT 호출 시 반론, 보완, 요약을 유도하는 프롬프트
-  const getRound2Messages = () => {
+  const getMessages = () => {
     // Round 1 메시지만 따로 필터링
     const round1OnlyMessages = allRoundsMessages.slice(0, 4).map(msg => ({
       role: msg.sender === 'User' ? 'user' : 'assistant',
@@ -186,23 +186,33 @@ export default function DiscussionPage() {
   
     const round2Messages = turnOrder.map(async (name) => {
       const stance = roles.pro.includes(name) ? '찬성' : '반대';
-  
-      console.log(`(round2) ${name} 발언 생성중`);
-  
-      const systemMsg = {
-        role: 'user',
-        content: `당신은 ${name} MBTI를 가진 토론 참가자입니다. 주제: "${topic}"에 대해 토론 중입니다. ` +
-                 `다음은 Round 1에서 나눈 참가자들의 발언입니다. 이를 참고해 ` +
-                 `당신의 ${stance} 입장을 보완하거나 반박하거나 요약해보세요. ` +
-                 `두 문장 이내로 답하고, MBTI 성격을 반영해주세요.`,
-      };
-  
-      const apiMsgs = [...round1OnlyMessages, systemMsg];
 
-      // console.log("apiMsg 찍어보기");
-      // console.log(apiMsgs);
+      let apiMsgs;
 
-
+      if(currentRound === 2) {
+        console.log(`(round2) ${name} 발언 생성중`);
+  
+        const systemMsg = {
+          role: 'user',
+          content: `당신은 ${name} MBTI를 가진 토론 참가자입니다. 주제: "${topic}"에 대해 토론 중입니다. ` +
+                   `다음은 Round 1에서 나눈 참가자들의 발언입니다. 이를 참고해 ` +
+                   `당신의 ${stance} 입장을 보완하거나 반박하거나 요약해보세요. ` +
+                   `두 문장 이내로 답하고, MBTI 성격을 반영해주세요.`,
+        };
+    
+        apiMsgs = [...round1OnlyMessages, systemMsg];
+  
+      }
+      else if (currentRound === 3) {
+        console.log(`(round3) ${name} 발언 생성중`);
+  
+        const systemMsg = {
+          role: 'user',
+          content: `당신은 ${name} MBTI를 가진 토론 참가자입니다. 말투와 태도에 반드시 성격을 반영하십시오. 주제: "${topic}"에 대한 토론의 Round 3 최종 발언입니다. + 다음은 이전 라운드에서 나온 참가자들의 발언입니다. 그중 최소 하나를 언급하여 긍정하거나 반박한 뒤, 자신의 ${stance} 입장을 두 문장 이내로 강하게 주장하십시오.`,
+        };
+    
+        apiMsgs = [...round1OnlyMessages, systemMsg];
+      }
       setCurrentTurn(prev => prev + 1);
   
       const reply = await callOpenAI(apiMsgs);
@@ -216,7 +226,7 @@ export default function DiscussionPage() {
   useEffect(() => {
     if (currentRound === 2 && currentTurn === 0) {
       (async () => {
-        const round2Messages = await getRound2Messages();
+        const round2Messages = await getMessages();
         setAllRoundsMessages(prevMessages => [...prevMessages, ...round2Messages]);
       })();
     }
