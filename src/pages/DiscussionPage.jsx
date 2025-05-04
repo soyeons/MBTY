@@ -127,37 +127,94 @@ export default function DiscussionPage() {
     })();
   }, [topic, personas, safeRoles]);
 
+  // 라운드 변경 시 메시지 설정
+  useEffect(() => {
+    if ((currentRound === 2 || currentRound === 3) && currentTurn === 0) {
+      (async () => {
+        const newMessages = await getMessages();
+        setAllRoundsMessages(prevMessages => [...prevMessages, ...newMessages]);
+      })();
+    }
+  }, [currentRound, currentTurn]);
+
   // 하나씩 메시지를 보여주기 위한 효과
   useEffect(() => {
-
     console.log(`(현재 라운드) ${currentRound} (현재 턴) ${currentTurn} / (누적 메시지) 아래 표시:`);
-    if(currentRound === 2 && currentTurn === 8) return;
+    
+    // 라운드별 최대 턴 수 계산
+    const maxTurns = {
+      1: 4,
+      2: 8,
+      3: 12
+    };
+    
+    // 라운드 3의 마지막 턴이면 종료
+    if(currentRound === 3 && currentTurn === maxTurns[3]) {
+      setIsUserTurn(false); // 더 이상의 유저 입력을 받지 않음
+      return;
+    }
 
     console.log(allRoundsMessages);
 
-    if (allRoundsMessages.length === 0 || currentTurn >= allRoundsMessages.length) return;
+    // 현재 라운드의 시작 인덱스 계산
+    const roundStartIndex = {
+      1: 0,
+      2: 4,
+      3: 8
+    };
 
-    const msg = allRoundsMessages[currentTurn];
+    const currentIndex = roundStartIndex[currentRound] + currentTurn;
+    if (allRoundsMessages.length === 0 || currentIndex >= allRoundsMessages.length) return;
+
+    const msg = allRoundsMessages[currentIndex];
     if (msg.sender === 'User') {
       setIsUserTurn(true);
       return;
     }
 
-    const timer = setTimeout(() => {
-      setMessages(prev => [...prev, msg]);
-      setCurrentTurn(prev => prev + 1);
+    const timer = setTimeout(async () => {
+      try {
+        // 현재 턴의 메시지가 없으면 생성
+        if (!msg.content) {
+          const newMessages = await getMessages();
+          const newMsg = newMessages.find(m => m.sender === msg.sender);
+          if (newMsg) {
+            setAllRoundsMessages(prev => {
+              const updated = [...prev];
+              updated[currentIndex] = newMsg;
+              return updated;
+            });
+            setMessages(prev => [...prev, newMsg]);
+          }
+        } else {
+          setMessages(prev => [...prev, msg]);
+        }
+        
+        setCurrentTurn(prev => prev + 1);
 
-      // 마지막 턴이면 라운드 2로 전환
-      if (currentTurn === 3) {
-        setTimeout(() => {
-          setCurrentRound(2);
-          setCurrentTurn(0);
-        }, 0);
+        // 라운드 전환 로직
+        if (currentRound === 1 && currentTurn === maxTurns[1] - 1) {
+          console.log('라운드 1 종료, 라운드 2로 전환');
+          setTimeout(() => {
+            setCurrentRound(2);
+            setCurrentTurn(0);
+          }, 0);
+        } else if (currentRound === 2 && currentTurn === 3) { // 라운드 2는 4턴만 진행
+          console.log('라운드 2 종료, 라운드 3로 전환');
+          setTimeout(() => {
+            setCurrentRound(3);
+            setCurrentTurn(0);
+          }, 0);
+        }
+      } catch (error) {
+        console.error('메시지 처리 중 오류 발생:', error);
+        // 오류 발생 시 다음 턴으로 넘어가도록 설정
+        setCurrentTurn(prev => prev + 1);
       }
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [allRoundsMessages, currentTurn]);
+  }, [allRoundsMessages, currentTurn, currentRound]);
 
   const handleSend = () => {
     if (!userInput.trim()) return;
@@ -175,23 +232,27 @@ export default function DiscussionPage() {
     setIsUserTurn(false);
 
     if(currentRound === 1 && currentTurn === 3) {
+      console.log('라운드 1 종료, 라운드 2로 전환');
       setCurrentRound(2);
       setCurrentTurn(0);
-    }
-    else{
+    } else if(currentRound === 2 && currentTurn === 3) { // 라운드 2는 4턴만 진행
+      console.log('라운드 2 종료, 라운드 3로 전환');
+      setCurrentRound(3);
+      setCurrentTurn(0);
+    } else {
       setCurrentTurn(prev => prev + 1);
     }
   };
 
-  // 라운드 2 GPT 호출 시 반론, 보완, 요약을 유도하는 프롬프트
+  // 라운드 2와 3의 GPT 호출 시 반론, 보완, 요약을 유도하는 프롬프트
   const getMessages = () => {
-    // Round 1 메시지만 따로 필터링
-    const round1OnlyMessages = allRoundsMessages.slice(0, 4).map(msg => ({
+    // 이전 라운드의 메시지만 따로 필터링
+    const previousRoundMessages = allRoundsMessages.slice(0, currentRound === 2 ? 4 : 8).map(msg => ({
       role: msg.sender === 'User' ? 'user' : 'assistant',
       content: msg.content,
     }));
   
-    const round2Messages = turnOrder.map(async (name) => {
+    const roundMessages = turnOrder.map(async (name) => {
       const stance = safeRoles.pro.includes(name) ? '찬성' : '반대';
 
       let apiMsgs;
@@ -202,48 +263,40 @@ export default function DiscussionPage() {
         const systemMsg = {
           role: 'user',
           content: `당신은 ${name} MBTI를 가진 토론 참가자입니다. 주제: "${topic}"에 대해 토론 중입니다. ` +
-                   `다음은 Round 1에서 나눈 참가자들의 발언입니다. 이 중 하나를 직접 언급하며 ` +
-                   `당신의 ${stance} 입장을 더욱 강력하게 주장해주세요. ` +
-                   `두 문장 이내로 답하고, MBTI 성격을 반영해주세요.`,
+                  `다음은 Round 1에서 나눈 참가자들의 발언입니다. 이 중 하나의 의견을 언급하며 ` +
+                  `당신의 ${stance} 입장을 더욱 강력하게 주장해주세요. ` +
+                  `두 문장 이내로 답하고, MBTI 성격을 반영해주세요.`,
         };
     
-        apiMsgs = [...round1OnlyMessages, systemMsg];
+        apiMsgs = [...previousRoundMessages, systemMsg];
   
-      }
-      else if (currentRound === 3) {
+      } else if (currentRound === 3) {
         console.log(`(round3) ${name} 발언 생성중`);
   
         const systemMsg = {
           role: 'user',
-          content: `당신은 ${name} MBTI를 가진 토론 참가자입니다. 말투와 태도에 반드시 성격을 반영하십시오. 주제: "${topic}"에 대한 토론의 Round 3 최종 발언입니다. + 다음은 이전 라운드에서 나온 참가자들의 발언입니다. 그중 최소 하나를 언급하여 긍정하거나 반박한 뒤, 자신의 ${stance} 입장을 두 문장 이내로 강하게 주장하십시오.`,
+          content: `당신은 ${name} MBTI를 가진 토론 참가자입니다. 주제: "${topic}"에 대한 토론의 최종 발언을 하셔야 합니다. ` +
+                  `지금까지 나온 모든 의견들을 검토한 후, ` +
+                  `당신의 MBTI 성격(${name})에 맞는 말투와 태도로, ${stance} 입장을 확고히 두 문장 정도로 간단명료하게 주장하세요.`,
         };
     
-        apiMsgs = [...round1OnlyMessages, systemMsg];
+        apiMsgs = [...previousRoundMessages, systemMsg];
       }
-      setCurrentTurn(prev => prev + 1);
   
       const reply = await callOpenAI(apiMsgs);
       return { sender: name, content: reply.content, stance };
     });
   
-    return Promise.all(round2Messages);
+    return Promise.all(roundMessages);
   };
-
-  // 라운드 변경 시 메시지 설정
-  useEffect(() => {
-    if (currentRound === 2 && currentTurn === 0) {
-      (async () => {
-        const round2Messages = await getMessages();
-        setAllRoundsMessages(prevMessages => [...prevMessages, ...round2Messages]);
-      })();
-    }
-  }, [currentRound, currentTurn]);
 
   return (
     <PageContainer>
-      <Header>📢 토론 주제: “{topic}”</Header>
+      <Header>📢 토론 주제: "{topic}"</Header>
       <RoundIndicator>
-        {currentRound === 2 ? '현재 라운드: 2 - 마지막 발언' : `현재 라운드: ${currentRound}`}
+        {currentRound === 2 ? '현재 라운드: 2 - 마지막 발언' : 
+         currentRound === 3 ? '현재 라운드: 3 - 최종 발언' : 
+         `현재 라운드: ${currentRound}`}
       </RoundIndicator>
       <ChatArea>
         {messages.map((msg, idx) => (
