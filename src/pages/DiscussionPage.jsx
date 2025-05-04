@@ -79,6 +79,12 @@ export default function DiscussionPage() {
   const [isUserTurn, setIsUserTurn] = useState(false);
   const [allRoundsMessages, setAllRoundsMessages] = useState([]);
 
+  // 따옴표 제거 함수
+  const removeQuotes = (text) => {
+    if (!text) return text;
+    return text.replace(/^["']|["']$/g, '').trim();
+  };
+
   const userStance = safeRoles.pro.includes('User') ? '찬성' : '반대';
 
   // 초기 메시지 생성 및 턴 순서 설정
@@ -118,7 +124,7 @@ export default function DiscussionPage() {
           };
 
           const reply = await callOpenAI([systemMsg]);
-          tempMessages.push({ sender: name, content: reply.content, stance });
+          tempMessages.push({ sender: name, content: removeQuotes(reply.content), stance });
         }
 
         setAllRoundsMessages(tempMessages);
@@ -284,7 +290,7 @@ export default function DiscussionPage() {
       }
   
       const reply = await callOpenAI(apiMsgs);
-      return { sender: name, content: reply.content, stance };
+      return { sender: name, content: removeQuotes(reply.content), stance };
     });
   
     return Promise.all(roundMessages);
@@ -331,16 +337,16 @@ const Message = ({ isUser, sender, content, stance }) => {
   const profileImg = allPersonasMap[sender] || user;
 
   return (
-    <MessageContainer isUser={isUser}>
+    <MessageContainer $isUser={isUser}>
       {!isUser && (
         <ProfileBox>
           <ProfileImg src={profileImg} alt={sender} />
           <MBTILabel>{sender}</MBTILabel>
         </ProfileBox>
       )}
-      <Bubble isUser={isUser}>
+      <Bubble $isUser={isUser}>
         <Text>{content}</Text>
-        <StanceTag isPro={stance === '찬성'}>{stance}</StanceTag>
+        <StanceTag $isPro={stance === '찬성'}>{stance}</StanceTag>
       </Bubble>
       {isUser && (
         <ProfileBox>
@@ -355,17 +361,15 @@ const Message = ({ isUser, sender, content, stance }) => {
 // 스타일 컴포넌트
 const PageContainer = styled.div`
   display: flex;
-  //background-color: pink;
   flex-direction: column;
   height: 100vh;
-  //padding: 20px;
 `;
+
 const Header = styled.div`
   font-size: 40px;
   font-weight: 800;
   margin-top: 30px;
   margin-bottom: 30px;
-  //background-color: green;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -378,31 +382,25 @@ const RoundIndicator = styled.div`
   margin-top: 10px;
   color: #555;
   margin-left: 30px;
-  //background-color: yellow;
 `;
+
 const ChatArea = styled.div`
   flex: 1;
-  //overflow-y: auto;
-  //margin-bottom: 16px;
   background-color: #dfdfdf;
 `;
-// const Message = styled.div
-//   ${({ isUser }) => isUser && 'text-align: right;'}
-//   //background-color: grey;
-//   font-size: 24px;
-//   //margin-left: 50px;
-// ;
+
 const InputArea = styled.div`
   display: flex;
   gap: 20px;
-  //background-color: orange;
   margin: 30px;
 `;
+
 const TextInput = styled.input`
   flex: 1;
   padding: 8px;
   font-size: 16px;
 `;
+
 const SendButton = styled.button`
   padding: 8px 16px;
   font-size: 16px;
@@ -415,11 +413,10 @@ const SendButton = styled.button`
 
 const MessageContainer = styled.div`
   display: flex;
-  flex-direction: ${({ isUser }) => (isUser ? 'row-reverse' : 'row')};
+  flex-direction: ${({ $isUser }) => ($isUser ? 'row-reverse' : 'row')};
   align-items: center;
   justify-content: flex-start;
   margin: 10px 30px;
-  //background-color: pink;
 `;
 
 const ProfileBox = styled.div`
@@ -427,7 +424,6 @@ const ProfileBox = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  //background-color: yellow;
 `;
 
 const MBTILabel = styled.div`
@@ -441,14 +437,13 @@ const ProfileImg = styled.img`
   width: 70px;
   height: 70px;
   border-radius: 50%;
-  //object-fit: cover;
   margin: 0 10px;
 `;
 
 const Bubble = styled.div`
   max-width: 50%;
-  background-color: ${({ isUser }) => (isUser ? '#000000' : '#f1f1f1')};
-  color: ${({ isUser }) => (isUser ? '#fff' : '#000')};
+  background-color: ${({ $isUser }) => ($isUser ? '#000000' : '#f1f1f1')};
+  color: ${({ $isUser }) => ($isUser ? '#fff' : '#000')};
   padding: 14px 20px;
   border-radius: 20px;
   font-size: 20px;
@@ -463,6 +458,6 @@ const StanceTag = styled.div`
   font-size: 15px;
   margin-top: 6px;
   text-align: right;
-  color: ${({ isPro }) => (isPro ? '#4caf50' : '#f44336')};
+  color: ${({ $isPro }) => ($isPro ? '#4caf50' : '#f44336')};
   font-weight: 800;
 `;
