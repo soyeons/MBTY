@@ -64,6 +64,13 @@ export default function DiscussionPage() {
   const location = useLocation();
   const { topic, personas, roles } = location.state || {};
 
+  // roles가 없을 경우 기본값 설정
+  const defaultRoles = {
+    pro: ['User'],
+    con: []
+  };
+  const safeRoles = roles || defaultRoles;
+
   const [messages, setMessages] = useState([]);
   const [userInput, setUserInput] = useState('');
   const [currentRound, setCurrentRound] = useState(1);
@@ -72,7 +79,7 @@ export default function DiscussionPage() {
   const [isUserTurn, setIsUserTurn] = useState(false);
   const [allRoundsMessages, setAllRoundsMessages] = useState([]);
 
-  const userStance = roles.pro.includes('User') ? '찬성' : '반대';
+  const userStance = safeRoles.pro.includes('User') ? '찬성' : '반대';
 
   // 초기 메시지 생성 및 턴 순서 설정
   useEffect(() => {
@@ -80,8 +87,8 @@ export default function DiscussionPage() {
 
     const turnOrderTemp = [];
 
-    const pros = roles.pro.filter(p => p !== 'User');
-    const cons = roles.con.filter(p => p !== 'User');
+    const pros = safeRoles.pro.filter(p => p !== 'User');
+    const cons = safeRoles.con.filter(p => p !== 'User');
 
     turnOrderTemp[0] = pros[0];
     turnOrderTemp[1] = cons[0];
@@ -103,7 +110,7 @@ export default function DiscussionPage() {
 
           console.log(`(round1) ${name} 발언 생성중`);
 
-          const stance = roles.pro.includes(name) ? '찬성' : '반대';
+          const stance = safeRoles.pro.includes(name) ? '찬성' : '반대';
           const systemMsg = {
             role: 'system',
             content: `당신은 ${name} MBTI를 가진 토론 참가자입니다. 주제: "${topic}". ` +
@@ -118,7 +125,7 @@ export default function DiscussionPage() {
       }
       
     })();
-  }, [topic, personas, roles]);
+  }, [topic, personas, safeRoles]);
 
   // 하나씩 메시지를 보여주기 위한 효과
   useEffect(() => {
@@ -185,7 +192,7 @@ export default function DiscussionPage() {
     }));
   
     const round2Messages = turnOrder.map(async (name) => {
-      const stance = roles.pro.includes(name) ? '찬성' : '반대';
+      const stance = safeRoles.pro.includes(name) ? '찬성' : '반대';
 
       let apiMsgs;
 
@@ -195,8 +202,8 @@ export default function DiscussionPage() {
         const systemMsg = {
           role: 'user',
           content: `당신은 ${name} MBTI를 가진 토론 참가자입니다. 주제: "${topic}"에 대해 토론 중입니다. ` +
-                   `다음은 Round 1에서 나눈 참가자들의 발언입니다. 이를 참고해 ` +
-                   `당신의 ${stance} 입장을 보완하거나 반박하거나 요약해보세요. ` +
+                   `다음은 Round 1에서 나눈 참가자들의 발언입니다. 이 중 하나를 직접 언급하며 ` +
+                   `당신의 ${stance} 입장을 더욱 강력하게 주장해주세요. ` +
                    `두 문장 이내로 답하고, MBTI 성격을 반영해주세요.`,
         };
     
