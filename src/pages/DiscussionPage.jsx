@@ -571,6 +571,8 @@ export default function DiscussionPage() {
   const [isUserTurn, setIsUserTurn] = useState(false);
   const [allRoundsMessages, setAllRoundsMessages] = useState([]);
   const [showEndModal, setShowEndModal] = useState(false); // ★ 종료 모달
+  const [showVoteModal, setShowVoteModal] = useState(false); // 투표
+
 
   /* ---------- 유틸 ---------- */
   const removeQuotes = (text) =>
@@ -635,7 +637,8 @@ export default function DiscussionPage() {
     /* ---- 종료 조건 ---- */
     if (currentRound === 3 && currentTurn === maxTurns[3]) {
       setIsUserTurn(false);
-      setShowEndModal(true); // ★ 모달 오픈
+      // setShowEndModal(true); // ★ 모달 오픈
+      setShowVoteModal(true); // 투표 모달부터 오픈
       return;
     }
 
@@ -728,17 +731,17 @@ export default function DiscussionPage() {
     return Promise.all(tasks);
   };
 
+  const roundLabels = {
+    1: "🗣️ 입론 : 나의 첫 주장을 펼쳐요",
+    2: "🔄 반론 : 상대 의견에 반박해요",
+    3: "🎯 최종 변론 : 내 입장을 정리해요",
+  };
+
   /* ---------- 렌더 ---------- */
   return (
     <PageContainer>
       <Header>📢 토론 주제: "{topic}"</Header>
-      <RoundIndicator>
-        {currentRound === 3
-          ? "현재 라운드: 3 - 최종 발언"
-          : currentRound === 2
-          ? "현재 라운드: 2 - 마지막 발언"
-          : `현재 라운드: ${currentRound}`}
-      </RoundIndicator>
+      <RoundIndicator>{roundLabels[currentRound]}</RoundIndicator>
 
       <ChatArea>
         {messages.map((m, i) => (
@@ -757,6 +760,65 @@ export default function DiscussionPage() {
         </InputArea>
       )}
 
+      <Modal
+        isOpen={showVoteModal}
+        onRequestClose={() => setShowVoteModal(false)}
+        style={{
+          content: {
+            inset: "40% auto auto 50%",
+            transform: "translate(-50%,-50%)",
+            width: 500,
+            borderRadius: 14,
+            padding: "32px 40px",
+            textAlign: "center",
+          },
+          overlay: { backgroundColor: "rgba(0,0,0,0.45)" },
+        }}
+      >
+        <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 24 }}>
+          🗳️ 토론 이후, 입장 변화에 대해 투표해 주세요
+        </h2>
+        <div style={{ display: "flex", gap: 16, justifyContent: "center" }}>
+          <button
+            onClick={() => {
+              setShowVoteModal(false); // ✅ 투표 모달 닫고
+              setShowEndModal(true);  // ✅ 종료 모달 열기
+            }}
+            style={{
+              padding: "10px 28px",
+              background: "#4caf50",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              fontWeight: 600,
+              fontSize: 20,
+              cursor: "pointer"
+            }}
+          >
+            찬성
+          </button>
+          <button
+            onClick={() => {
+              setShowVoteModal(false);
+              setShowEndModal(true);
+            }}
+            style={{
+              padding: "10px 28px",
+              background: "#f44336",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              fontWeight: 600,
+              fontSize: 20,
+              cursor: "pointer"
+            }}
+          >
+            반대
+          </button>
+        </div>
+      </Modal>
+
+
       {/* ---------- 종료 모달 ---------- */}
       <Modal
         isOpen={showEndModal}
@@ -773,8 +835,11 @@ export default function DiscussionPage() {
           overlay: { backgroundColor: "rgba(0,0,0,0.45)" },
         }}
       >
-        <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 24 }}>
-          토론이 종료되었습니다
+        <h3 style={{ fontSize: 30, fontWeight: 800, color: "#000000", marginBottom: 10 }}>
+        🗳️ 투표 결과 🗳️
+        </h3>
+        <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24 }}>
+          찬성 : 3표, 반대 : 1표
         </h2>
         <p style={{ marginBottom: 32, fontSize: 18 }}>
           새로운 토론을 시작하시겠습니까?
@@ -788,6 +853,9 @@ export default function DiscussionPage() {
               color: "#fff",
               border: "none",
               borderRadius: 8,
+              fontWeight: 600,
+              fontSize: 20,
+              cursor: "pointer"
             }}
           >
             예
@@ -799,6 +867,9 @@ export default function DiscussionPage() {
               background: "#e0e0e0",
               border: "none",
               borderRadius: 8,
+              fontWeight: 600,
+              fontSize: 20,
+              cursor: "pointer"
             }}
           >
             아니오
@@ -808,6 +879,7 @@ export default function DiscussionPage() {
     </PageContainer>
   );
 }
+
 
 /* ---------- 말풍선 + 프로필 ---------- */
 const Message = ({ isUser, sender, content, stance }) => {
@@ -824,12 +896,12 @@ const Message = ({ isUser, sender, content, stance }) => {
         <Text>{content}</Text>
         <StanceTag $isPro={stance === "찬성"}>{stance}</StanceTag>
       </Bubble>
-      {isUser && (
+      {/* {isUser && (
         <ProfileBox>
           <ProfileImg src={profileImg} alt="User" />
           <MBTILabel>{sender}</MBTILabel>
         </ProfileBox>
-      )}
+      )} */}
     </MessageContainer>
   );
 };
@@ -839,32 +911,42 @@ const PageContainer = styled.div`
   display: flex;
   flex-direction: column;
   height: 100vh;
+  overflow: hidden;
 `;
 
 const Header = styled.div`
   font-size: 40px;
   font-weight: 800;
   margin: 30px 0;
+  color: #000000;
+  background-color: #ffffff;
   display: flex;
   justify-content: center;
 `;
 
 const RoundIndicator = styled.div`
-  font-size: 20px;
+  font-size: 30px;
   font-weight: 700;
-  margin: 10px 0 10px 30px;
-  color: #555;
+  padding-top: 20px;
+  padding-bottom: 20px;
+  color: #ffffff;
+  background-color: #000000;
+  display: flex;
+  justify-content: center;
 `;
 
 const ChatArea = styled.div`
   flex: 1;
   background: #dfdfdf;
+  overflow-y: auto;
+  padding: 20px 30px;
 `;
 
 const InputArea = styled.div`
   display: flex;
   gap: 20px;
-  margin: 30px;
+  //margin: 30px;
+  padding: 20px 30px;
 `;
 
 const TextInput = styled.input`
