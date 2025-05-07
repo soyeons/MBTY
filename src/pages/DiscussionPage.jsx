@@ -188,8 +188,15 @@ export default function DiscussionPage() {
           setAllRoundsMessages(prev => [...prev, ...newMsgs]);
           setMessages(prev => [...prev, ...newMsgs]);
           
-          // 마지막 턴이 아닌 경우에만 턴 진행
+          // 라운드 2의 마지막 턴이 아닌 경우에만 턴 진행
           if (currentRound === 2 && currentTurn < 5) {
+            advanceTurn({ 1: 2, 2: 6, 3: 2 });
+          } else if (currentRound === 2 && currentTurn === 5) {
+            // 라운드 2의 마지막 턴이면 라운드 3으로 전환
+            setCurrentRound(3);
+            setCurrentTurn(0);
+          } else if (currentRound === 3 && currentTurn === 0) {
+            // 라운드 3의 첫 턴이 끝나면 다음 턴으로
             advanceTurn({ 1: 2, 2: 6, 3: 2 });
           }
         }
@@ -216,8 +223,32 @@ export default function DiscussionPage() {
     const roundStartIdx = { 1: 0, 2: 2, 3: 8 }; // 라운드 3 시작 인덱스는 그대로 유지
     const idx = roundStartIdx[currentRound] + currentTurn;
     
+    // 각 진영의 참가자 목록 설정 (유저 제외)
+    const pros = safeRoles.pro.filter((p) => p !== "User");
+    const cons = safeRoles.con.filter((p) => p !== "User");
+
+    // 라운드 2의 발언 순서 설정
+    const round2Order = [
+      safeRoles.pro[1],     // 찬성2
+      safeRoles.con[1],     // 반대2
+      safeRoles.pro[0],     // 찬성1
+      safeRoles.con[0],     // 반대1
+      safeRoles.pro[1],     // 찬성2
+      safeRoles.con[1]      // 반대2
+    ];
+
+    // 라운드 3의 발언 순서 설정 (찬성1과 반대1만)
+    const round3Order = userStance === "찬성"
+      ? ["User", safeRoles.con[0]]  // 찬성1(유저) -> 반대1
+      : [pros[0], "User"];          // 찬성1 -> 반대1(유저)
+    
+    // 현재 라운드의 발언 순서 결정
+    const currentOrder = currentRound === 2 ? round2Order : 
+                        currentRound === 3 ? round3Order : 
+                        turnOrder;
+    
     // 유저 차례인지 먼저 확인
-    const isCurrentUserTurn = turnOrder[currentTurn] === "User";
+    const isCurrentUserTurn = currentOrder[currentTurn] === "User";
     
     if (isCurrentUserTurn) {
       console.log("\n=== 유저 차례 ===");
@@ -226,7 +257,7 @@ export default function DiscussionPage() {
     }
 
     // 현재 발언자 확인
-    const currentSpeaker = turnOrder[currentTurn];
+    const currentSpeaker = currentOrder[currentTurn];
     console.log(`\n=== ${currentSpeaker}의 발언 차례 ===`);
 
     const timer = setTimeout(async () => {
@@ -244,7 +275,7 @@ export default function DiscussionPage() {
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [allRoundsMessages, currentTurn, currentRound, turnOrder]);
+  }, [allRoundsMessages, currentTurn, currentRound, turnOrder, safeRoles, userStance]);
 
   const advanceTurn = (maxTurns) => {
     console.log("\n=== 턴 진행 ===");
@@ -289,7 +320,13 @@ export default function DiscussionPage() {
 
     setUserInput("");
     setIsUserTurn(false);
-    advanceTurn({ 1: 2, 2: 6, 3: 2 });
+    
+    // 라운드 3의 마지막 턴이면 투표 모달 표시
+    if (currentRound === 3 && currentTurn === 1) {
+      setShowVoteModal(true);
+    } else {
+      advanceTurn({ 1: 2, 2: 6, 3: 2 });
+    }
   };
 
   /* ---------- GPT 메시지 생성 ---------- */
@@ -318,6 +355,14 @@ export default function DiscussionPage() {
                         currentRound === 3 ? round3Order : 
                         turnOrder;
 
+    // 현재 발언자가 유저인 경우 메시지 생성 건너뛰기
+    const currentSpeaker = currentOrder[currentTurn];
+    if (currentSpeaker === "User") {
+      console.log("유저 차례 감지 - 메시지 생성 중단");
+      setIsUserTurn(true);
+      return [];
+    }
+
     const messages = [];
     let accumulatedMessages = [...allRoundsMessages]; // 현재까지의 모든 메시지 복사
     
@@ -329,17 +374,6 @@ export default function DiscussionPage() {
 
       // 현재 턴의 발화자만 처리
       const name = currentOrder[currentTurn];
-      
-      // 유저 차례인 경우 건너뛰기
-      if (name === "User") {
-        console.log("유저 차례 감지 - 메시지 생성 중단");
-        setIsUserTurn(true);
-        return messages;
-      }
-
-      console.log(`\n=== 라운드 2 턴 ${currentTurn + 1} 처리 중 ===`);
-      console.log("현재 발화자:", name);
-
       const stance = safeRoles.pro.includes(name) ? "찬성" : "반대";
       
       // 현재까지의 모든 메시지를 컨텍스트로 사용
@@ -359,7 +393,7 @@ export default function DiscussionPage() {
         `당신은 ${name} MBTI 토론자입니다. 주제: "${topic}".\n\n` +
         `지금까지의 토론 내용입니다:\n${messageTexts.join("\n")}\n\n` +
         `${stance} 입장에서, 마치 실제 사람이 대화하는 것처럼 자연스럽게 말해주세요. ` +
-        `직전 발언자(${previousSpeaker})의 주장을 반드시 직접 인용("...")하여 언급한 후, 그에 대한 반박이나 새로운 관점을 제시해주세요. ` +
+        `직전 발언자(${previousSpeaker})의 주장을 반드시 직접 인용하여 간단하게 언급한 후, 그에 대한 반박이나 새로운 관점을 제시해주세요. ` +
         `반드시 정확히 두 문장으로만 답변해주세요. ` +
         `첫 번째 문장에서는 직전 발언자의 주장을 인용하고 그에 대한 반박이나 새로운 관점을 제시하고, 두 번째 문장에서는 당신의 확장된 주장을 펼쳐주세요. ` +
         `세 문장 이상으로 답변하지 마세요. ` +
@@ -396,38 +430,46 @@ export default function DiscussionPage() {
         .filter(msg => msg && msg.content)
         .map(msg => `${msg.content}`);
 
-      for (const name of currentOrder) {
-        const stance = safeRoles.pro.includes(name) ? "찬성" : "반대";
-        
-        const prompt =
-          `당신은 ${name} MBTI 토론자입니다. 주제: "${topic}".\n\n` +
-          `지금까지의 전체 토론 내용입니다:\n${messageTexts.join("\n")}\n\n` +
-          `위의 모든 발언을 참고하여, ${stance} 입장에서 최종 변론을 해주세요. ` +
-          `지금까지의 토론을 종합하여 가장 강력한 주장을 펼쳐주세요. ` +
-          `반드시 두 문장 이내로만 명료하게 답변해주세요. ` +
-          `MBTI 성격을 말투에 반영하되 MBTI를 직접 언급하지는 마세요. ` +
-          `반드시 존댓말을 사용해주세요.`;
-
-        const reply = await callOpenAI([
-          { role: "system", content: prompt },
-          ...messageTexts.map(msg => ({
-            role: "user",
-            content: msg
-          }))
-        ]);
-
-        if (!reply || !reply.content) {
-          console.error('Invalid reply from OpenAI');
-          return null;
-        }
-
-        messages.push({ 
-          sender: name, 
-          content: removeQuotes(reply.content), 
-          stance,
-          mbti: name
-        });
+      // 현재 턴의 발화자만 처리
+      const name = currentOrder[currentTurn];
+      
+      // 유저 차례인 경우 건너뛰기
+      if (name === "User") {
+        console.log("라운드 3 유저 차례 감지 - 메시지 생성 중단");
+        setIsUserTurn(true);
+        return [];
       }
+
+      const stance = safeRoles.pro.includes(name) ? "찬성" : "반대";
+      
+      const prompt =
+        `당신은 ${name} MBTI 토론자입니다. 주제: "${topic}".\n\n` +
+        `지금까지의 전체 토론 내용입니다:\n${messageTexts.join("\n")}\n\n` +
+        `위의 모든 발언을 참고하여, ${stance} 입장에서 최종 변론을 해주세요. ` +
+        `지금까지의 토론을 종합하여 가장 강력한 주장을 펼쳐주세요. ` +
+        `반드시 두 문장 이내로만 명료하게 답변해주세요. ` +
+        `MBTI 성격을 말투에 반영하되 MBTI를 직접 언급하지는 마세요. ` +
+        `반드시 존댓말을 사용해주세요.`;
+
+      const reply = await callOpenAI([
+        { role: "system", content: prompt },
+        ...messageTexts.map(msg => ({
+          role: "user",
+          content: msg
+        }))
+      ]);
+
+      if (!reply || !reply.content) {
+        console.error('Invalid reply from OpenAI');
+        return null;
+      }
+
+      messages.push({ 
+        sender: name, 
+        content: removeQuotes(reply.content), 
+        stance,
+        mbti: name
+      });
       return messages;
     } else {
       // 라운드 1은 첫 발언만
