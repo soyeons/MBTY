@@ -129,7 +129,7 @@ export default function DiscussionPage() {
           role: "system",
           content:
             `당신은 ${name} MBTI 토론자입니다. 주제: "${topic}". ` +
-            `${stance} 입장에서 MBTI 성격을 반영하여 한두 문장 첫 발언.`,
+            `${stance} 입장에서 MBTI 성격을 반영하여 한두 문장 첫 발언하되, 당신의 MBTI를 언급하는 답변은 하지마`,
         };
         const reply = await callOpenAI([sys]);
         firstMsgs.push({
@@ -345,7 +345,7 @@ export default function DiscussionPage() {
       } else {
         prompt =
           `당신은 ${name} MBTI 토론자. 주제: "${topic}". ` +
-          `최종 발언: 지금까지 의견 검토 후 ${stance} 입장을 두 문장으로 강력하게 정리.`;
+          `최종 발언: 지금까지 의견 검토 후 ${stance} 입장을 두 문장으로 강력하게 정리하되, 당신의 MBTI를 언급하는 답변은 하지마.`;
       }
 
       const reply = await callOpenAI([
