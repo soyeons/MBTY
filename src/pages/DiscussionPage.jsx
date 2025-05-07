@@ -125,6 +125,12 @@ export default function DiscussionPage() {
       safeRoles.con[1]      // 반대2
     ];
 
+    // 라운드 3의 발언 순서 설정 (찬성1과 반대1만)
+    const round3Order = [
+      safeRoles.pro[0],     // 찬성1
+      safeRoles.con[0]      // 반대1
+    ];
+
     // 순서 확인을 위한 로깅
     console.log("\n=== 라운드 2 발언 순서 ===");
     console.log("현재 참가자 정보:");
@@ -144,6 +150,11 @@ export default function DiscussionPage() {
     // 라운드 2 시작 시 발언 순서 업데이트
     if (currentRound === 2) {
       setTurnOrder(round2Order);
+    }
+
+    // 라운드 3 시작 시 발언 순서 업데이트
+    if (currentRound === 3) {
+      setTurnOrder(round3Order);
     }
 
     (async () => {
@@ -177,6 +188,13 @@ export default function DiscussionPage() {
   /* ---------- 라운드 2·3 GPT 메시지 추가 ---------- */
   useEffect(() => {
     if ((currentRound === 2 || currentRound === 3) && !isUserTurn) {
+      // 라운드 3의 마지막 턴이 끝났으면 GPT 호출하지 않음
+      if (currentRound === 3 && currentTurn === 1) {
+        console.log("\n=== 라운드 3 종료 ===");
+        setShowVoteModal(true);
+        return;
+      }
+
       console.log("\n=== 메시지 생성 시작 ===");
       console.log("현재 라운드:", currentRound);
       console.log("현재 턴:", currentTurn);
@@ -314,7 +332,9 @@ export default function DiscussionPage() {
     setMessages((prev) => [...prev, newMsg]);
     setAllRoundsMessages((prev) => {
       const up = [...prev];
-      up[currentTurn] = newMsg;
+      const roundStartIdx = { 1: 0, 2: 2, 3: 8 };
+      const idx = roundStartIdx[currentRound] + currentTurn;
+      up[idx] = newMsg;
       return up;
     });
 
