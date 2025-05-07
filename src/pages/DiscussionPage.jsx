@@ -78,9 +78,10 @@ export default function DiscussionPage() {
   const [currentTurn, setCurrentTurn] = useState(0);
   const [isUserTurn, setIsUserTurn] = useState(false);
   const [allRoundsMessages, setAllRoundsMessages] = useState([]);
-  const [showEndModal, setShowEndModal] = useState(false); // ★ 종료 모달
-  const [showVoteModal, setShowVoteModal] = useState(false); // 투표
-
+  const [showEndModal, setShowEndModal] = useState(false);
+  const [showVoteModal, setShowVoteModal] = useState(false);
+  const [isDiscussionActive, setIsDiscussionActive] = useState(true);
+  const [round3OpponentMessage, setRound3OpponentMessage] = useState(null);
 
   /* ---------- 유틸 ---------- */
   const removeQuotes = (text) =>
@@ -197,51 +198,114 @@ export default function DiscussionPage() {
 
   /* ---------- 라운드 2·3 GPT 메시지 추가 ---------- */
   useEffect(() => {
-    if ((currentRound === 2 || currentRound === 3) && !isUserTurn) {
-      console.log("\n=== 메시지 생성 시작 ===");
-      console.log("현재 라운드:", currentRound);
-      console.log("현재 턴:", currentTurn);
-      
+    if (currentRound === 2 && !isUserTurn && isDiscussionActive) {
       (async () => {
         const newMsgs = await getMessages();
         if (newMsgs && newMsgs.length > 0) {
-          // 메시지 추가는 여기서만 수행
+          // 마지막 턴인 경우 중복 방지를 위해 메시지 추가 전에 확인
+          if (currentTurn === 5) {
+            const lastMessage = allRoundsMessages[allRoundsMessages.length - 1];
+            if (lastMessage && lastMessage.content === newMsgs[0].content) {
+              // 이미 동일한 메시지가 있다면 추가하지 않음
+              setCurrentRound(3);
+              setCurrentTurn(0);
+              
+              // 라운드 3 상대방 메시지 생성
+              const opponentMsg = await generateRound3OpponentMessage();
+              setRound3OpponentMessage(opponentMsg);
+
+              // 유저가 찬성인 경우에만 유저 입력 대기
+              if (userStance === "찬성") {
+                setIsUserTurn(true);
+              } else {
+                // 반대인 경우 상대방 메시지를 바로 표시
+                if (opponentMsg) {
+                  setMessages(prev => [...prev, opponentMsg]);
+                  setAllRoundsMessages(prev => [...prev, opponentMsg]);
+                }
+                setIsUserTurn(true);
+              }
+              return;
+            }
+          }
+
           setAllRoundsMessages(prev => [...prev, ...newMsgs]);
           setMessages(prev => [...prev, ...newMsgs]);
           
-          // 라운드 2의 마지막 턴이 아닌 경우에만 턴 진행
-          if (currentRound === 2 && currentTurn < 5) {
+          if (currentTurn < 5) {
             advanceTurn({ 1: 2, 2: 6, 3: 2 });
-          } else if (currentRound === 2 && currentTurn === 5) {
-            // 라운드 2의 마지막 턴이면 라운드 3으로 전환
+          } else if (currentTurn === 5) {
             setCurrentRound(3);
             setCurrentTurn(0);
-          } else if (currentRound === 3 && currentTurn === 0) {
-            // 라운드 3의 첫 턴이 끝나면 다음 턴으로
-            advanceTurn({ 1: 2, 2: 6, 3: 2 });
+            
+            // 라운드 3 상대방 메시지 생성
+            const opponentMsg = await generateRound3OpponentMessage();
+            setRound3OpponentMessage(opponentMsg);
+
+            // 유저가 찬성인 경우에만 유저 입력 대기
+            if (userStance === "찬성") {
+              setIsUserTurn(true);
+            } else {
+              // 반대인 경우 상대방 메시지를 바로 표시
+              if (opponentMsg) {
+                setMessages(prev => [...prev, opponentMsg]);
+                setAllRoundsMessages(prev => [...prev, opponentMsg]);
+              }
+              setIsUserTurn(true);
+            }
           }
         }
       })();
     }
-  }, [currentRound, currentTurn, isUserTurn]);
+  }, [currentRound, currentTurn, isUserTurn, isDiscussionActive, userStance, allRoundsMessages]);
+
+  /* ---------- 라운드 3 상대방 메시지 생성 함수 ---------- */
+  const generateRound3OpponentMessage = async () => {
+    const messageTexts = allRoundsMessages
+      .filter(msg => msg && msg.content)
+      .map(msg => `${msg.content}`);
+
+    // 상대방 정보 설정
+    const opponentName = userStance === "찬성" ? safeRoles.con[0] : safeRoles.pro[0];
+    const opponentStance = userStance === "찬성" ? "반대" : "찬성";
+
+    const prompt =
+      `당신은 ${opponentName} MBTI 토론자입니다. 주제: "${topic}".\n\n` +
+      `지금까지의 전체 토론 내용입니다:\n${messageTexts.join("\n")}\n\n` +
+      `위의 모든 발언을 참고하여, ${opponentStance} 입장에서 최종 변론을 해주세요. ` +
+      `지금까지의 토론을 종합하여 가장 강력한 주장을 펼쳐주세요. ` +
+      `반드시 두 문장 이내로만 명료하게 답변해주세요. ` +
+      `${opponentStance} 입장에서 ${opponentName} MBTI 성향을 말투에 반영하여 성격을 말투에 반영하되 MBTI를 직접적으로 언급하지는 마세요. ` +
+      `반드시 존댓말을 사용해주세요.`;
+
+    const reply = await callOpenAI([
+      { role: "system", content: prompt },
+      ...messageTexts.map(msg => ({
+        role: "user",
+        content: msg
+      }))
+    ]);
+
+    if (reply && reply.content) {
+      return {
+        sender: opponentName,
+        content: removeQuotes(reply.content),
+        stance: opponentStance,
+        mbti: opponentName
+      };
+    }
+    return null;
+  };
 
   /* ---------- 메시지 한 개씩 출력 ---------- */
   useEffect(() => {
-    const maxTurns = { 1: 2, 2: 6, 3: 2 }; // 라운드 3는 2턴으로 수정
+    const maxTurns = { 1: 2, 2: 6, 3: 2 };
 
-    console.log("\n=== 토론 진행 상황 ===");
-    console.log(`현재 라운드: ${currentRound} (${roundLabels[currentRound]})`);
-    console.log(`현재 턴: ${currentTurn + 1}/${maxTurns[currentRound]}`);
-
-    /* ---- 종료 조건 ---- */
-    if (currentRound === 3 && currentTurn === maxTurns[3]) {
-      console.log("\n=== 토론 종료 ===");
-      setIsUserTurn(false);
-      setShowVoteModal(true);
+    if (!isDiscussionActive || currentRound === 3) {
       return;
     }
 
-    const roundStartIdx = { 1: 0, 2: 2, 3: 8 }; // 라운드 3 시작 인덱스는 그대로 유지
+    const roundStartIdx = { 1: 0, 2: 2, 3: 8 };
     const idx = roundStartIdx[currentRound] + currentTurn;
     
     // 각 진영의 참가자 목록 설정 (유저 제외)
@@ -261,7 +325,7 @@ export default function DiscussionPage() {
     // 라운드 3의 발언 순서 설정 (찬성1과 반대1만)
     const round3Order = userStance === "찬성"
       ? ["User", safeRoles.con[0]]  // 찬성1(유저) -> 반대1
-      : [safeRoles.pro[0], "User"]; // 찬성1 -> 반대1(유저)
+      : [pros[0], "User"];          // 찬성1 -> 반대1(유저)
     
     // 현재 라운드의 발언 순서 결정
     const currentOrder = currentRound === 2 ? round2Order : 
@@ -291,12 +355,22 @@ export default function DiscussionPage() {
         return;
       }
 
-      setMessages((prev) => [...prev, msg]);
+      // 중복 메시지 체크
+      const isDuplicate = messages.some(m => 
+        m.sender === msg.sender && 
+        m.content === msg.content && 
+        m.stance === msg.stance
+      );
+      
+      if (!isDuplicate) {
+        setMessages((prev) => [...prev, msg]);
+      }
+      
       advanceTurn(maxTurns);
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [allRoundsMessages, currentTurn, currentRound, turnOrder, safeRoles, userStance]);
+  }, [allRoundsMessages, currentTurn, currentRound, turnOrder, safeRoles, userStance, isDiscussionActive, messages]);
 
   const advanceTurn = (maxTurns) => {
     console.log("\n=== 턴 진행 ===");
@@ -324,13 +398,8 @@ export default function DiscussionPage() {
 
   /* ---------- 유저 전송 ---------- */
   const handleSend = () => {
-    if (!userInput.trim()) return;
+    if (!userInput.trim() || !isDiscussionActive) return;
     const newMsg = { sender: "User", content: userInput, stance: userStance };
-
-    console.log("\n=== 유저 입력 처리 ===");
-    console.log("현재 라운드:", currentRound);
-    console.log("현재 턴:", currentTurn);
-    console.log("유저 메시지:", newMsg);
 
     setMessages((prev) => [...prev, newMsg]);
     setAllRoundsMessages((prev) => {
@@ -344,10 +413,16 @@ export default function DiscussionPage() {
     setUserInput("");
     setIsUserTurn(false);
     
-    // 라운드 3의 마지막 턴이면 투표 모달 표시
-    if (currentRound === 3 && currentTurn === 1) {
-      console.log("\n=== 라운드 3 종료 - 투표 모달 표시 ===");
+    // 라운드 3의 경우
+    if (currentRound === 3) {
+      // 찬성인 경우에만 상대방의 미리 생성된 메시지 표시
+      if (userStance === "찬성" && round3OpponentMessage) {
+        setMessages(prev => [...prev, round3OpponentMessage]);
+        setAllRoundsMessages(prev => [...prev, round3OpponentMessage]);
+      }
+      // 투표 모달 표시 및 토론 종료
       setShowVoteModal(true);
+      setIsDiscussionActive(false);
     } else {
       advanceTurn({ 1: 2, 2: 6, 3: 2 });
     }
@@ -355,6 +430,11 @@ export default function DiscussionPage() {
 
   /* ---------- GPT 메시지 생성 ---------- */
   const getMessages = async () => {
+    // 라운드 3는 미리 생성된 메시지를 사용하므로 여기서는 처리하지 않음
+    if (currentRound === 3) {
+      return [];
+    }
+
     // 각 진영의 참가자 목록 설정 (유저 제외)
     const pros = safeRoles.pro.filter((p) => p !== "User");
     const cons = safeRoles.con.filter((p) => p !== "User");
