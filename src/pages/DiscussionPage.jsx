@@ -298,7 +298,8 @@ export default function DiscussionPage() {
         
         // 유저 차례인 경우 건너뛰기
         if (name === "User") {
-          continue;
+          setIsUserTurn(true);
+          return messages;
         }
 
         const stance = safeRoles.pro.includes(name) ? "찬성" : "반대";
