@@ -126,10 +126,9 @@ export default function DiscussionPage() {
     ];
 
     // 라운드 3의 발언 순서 설정 (찬성1과 반대1만)
-    const round3Order = [
-      safeRoles.pro[0],     // 찬성1
-      safeRoles.con[0]      // 반대1
-    ];
+    const round3Order = userStance === "찬성"
+      ? ["User", safeRoles.con[0]]  // 찬성1(유저) -> 반대1
+      : [safeRoles.pro[0], "User"]; // 찬성1 -> 반대1(유저)
 
     // 순서 확인을 위한 로깅
     console.log("\n=== 라운드 2 발언 순서 ===");
@@ -154,7 +153,18 @@ export default function DiscussionPage() {
 
     // 라운드 3 시작 시 발언 순서 업데이트
     if (currentRound === 3) {
-      setTurnOrder(round3Order);
+      console.log("\n=== 라운드 3 발언 순서 설정 ===");
+      console.log("유저 진영:", userStance);
+      console.log("찬성1:", safeRoles.pro[0]);
+      console.log("반대1:", safeRoles.con[0]);
+      
+      // 유저의 진영에 따라 라운드 3의 발언 순서 설정
+      const finalRound3Order = userStance === "찬성"
+        ? ["User", safeRoles.con[0]]  // 찬성1(유저) -> 반대1
+        : [safeRoles.pro[0], "User"]; // 찬성1 -> 반대1(유저)
+      
+      console.log("라운드 3 발언 순서:", finalRound3Order);
+      setTurnOrder(finalRound3Order);
     }
 
     (async () => {
@@ -171,7 +181,7 @@ export default function DiscussionPage() {
           role: "system",
           content:
             `당신은 ${name} MBTI 토론자입니다. 주제: "${topic}". ` +
-            `${stance} 입장에서 MBTI 성격을 반영하여 한두 문장 첫 발언하되, 당신의 MBTI를 언급하는 답변은 하지마`,
+            `${stance} 입장에서 ${name} MBTI 성향을 말투에 반영하여 한두 문장 첫 발언하되, 당신의 MBTI를 직접적으로 언급하는 답변은 하지마`,
         };
         const reply = await callOpenAI([sys]);
         firstMsgs.push({
@@ -188,13 +198,6 @@ export default function DiscussionPage() {
   /* ---------- 라운드 2·3 GPT 메시지 추가 ---------- */
   useEffect(() => {
     if ((currentRound === 2 || currentRound === 3) && !isUserTurn) {
-      // 라운드 3의 마지막 턴이 끝났으면 GPT 호출하지 않음
-      if (currentRound === 3 && currentTurn === 1) {
-        console.log("\n=== 라운드 3 종료 ===");
-        setShowVoteModal(true);
-        return;
-      }
-
       console.log("\n=== 메시지 생성 시작 ===");
       console.log("현재 라운드:", currentRound);
       console.log("현재 턴:", currentTurn);
@@ -258,7 +261,7 @@ export default function DiscussionPage() {
     // 라운드 3의 발언 순서 설정 (찬성1과 반대1만)
     const round3Order = userStance === "찬성"
       ? ["User", safeRoles.con[0]]  // 찬성1(유저) -> 반대1
-      : [pros[0], "User"];          // 찬성1 -> 반대1(유저)
+      : [safeRoles.pro[0], "User"]; // 찬성1 -> 반대1(유저)
     
     // 현재 라운드의 발언 순서 결정
     const currentOrder = currentRound === 2 ? round2Order : 
@@ -343,6 +346,7 @@ export default function DiscussionPage() {
     
     // 라운드 3의 마지막 턴이면 투표 모달 표시
     if (currentRound === 3 && currentTurn === 1) {
+      console.log("\n=== 라운드 3 종료 - 투표 모달 표시 ===");
       setShowVoteModal(true);
     } else {
       advanceTurn({ 1: 2, 2: 6, 3: 2 });
@@ -417,7 +421,7 @@ export default function DiscussionPage() {
         `반드시 정확히 두 문장으로만 답변해주세요. ` +
         `첫 번째 문장에서는 직전 발언자의 주장을 인용하고 그에 대한 반박이나 새로운 관점을 제시하고, 두 번째 문장에서는 당신의 확장된 주장을 펼쳐주세요. ` +
         `세 문장 이상으로 답변하지 마세요. ` +
-        `MBTI 성격을 말투에 반영하되 MBTI를 직접 언급하지는 마세요. ` +
+        `${stance} 입장에서 ${name} MBTI 성향을 말투에 반영하여 말하되 MBTI를 직접적으로 언급하지는 마세요. ` +
         `반드시 존댓말을 사용하되, 너무 딱딱하거나 격식체로 말하지 말고 일상적인 대화처럼 자연스럽게 말해주세요.`;
 
       const reply = await callOpenAI([
@@ -468,7 +472,7 @@ export default function DiscussionPage() {
         `위의 모든 발언을 참고하여, ${stance} 입장에서 최종 변론을 해주세요. ` +
         `지금까지의 토론을 종합하여 가장 강력한 주장을 펼쳐주세요. ` +
         `반드시 두 문장 이내로만 명료하게 답변해주세요. ` +
-        `MBTI 성격을 말투에 반영하되 MBTI를 직접 언급하지는 마세요. ` +
+        `${stance} 입장에서 ${name} MBTI 성향을 말투에 반영하여 성격을 말투에 반영하되 MBTI를 직접적으로 언급하지는 마세요. ` +
         `반드시 존댓말을 사용해주세요.`;
 
       const reply = await callOpenAI([
@@ -498,7 +502,7 @@ export default function DiscussionPage() {
         
         const prompt =
           `당신은 ${name} MBTI 토론자입니다. 주제: "${topic}". ` +
-          `${stance} 입장에서 MBTI 성격을 반영하여 첫 발언해주세요. ` +
+          `${stance} 입장에서 ${name} MBTI 성향을 말투에 반영하여 첫 발언해주세요. ` +
           `반드시 두 문장 이내로만 명료하게 답변해주세요. ` +
           `MBTI를 직접 언급하지는 마세요. ` +
           `반드시 존댓말을 사용해주세요.`;
