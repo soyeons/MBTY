@@ -480,36 +480,54 @@ export default function DiscussionPage() {
       const name = currentOrder[currentTurn];
       const stance = safeRoles.pro.includes(name) ? "찬성" : "반대";
       
-      // 현재까지의 모든 메시지를 컨텍스트로 사용
-      const messageTexts = accumulatedMessages
+      // 메시지 히스토리를 자연스러운 대화 형식으로 변환
+      const messageHistory = accumulatedMessages
         .filter(msg => msg && msg.content)
-        .map(msg => `${msg.content}`);
+        .map(msg => ({
+          role: "user",
+          content: msg.content
+        }));
 
       // 직전 발언자와 메시지 확인
       const previousSpeaker = currentTurn > 0 ? currentOrder[currentTurn - 1] : null;
       const previousMessage = previousSpeaker ? 
         accumulatedMessages[accumulatedMessages.length - 1] : null;
 
-      console.log(`이전 발화자: ${previousSpeaker}`);
-      console.log(`이전 메시지:`, previousMessage);
+      console.log("\n=== 발언자 정보 ===");
+      console.log("현재 발언자:", name);
+      console.log("현재 발언자 진영:", stance);
+      console.log("직전 발언자:", previousSpeaker);
+      console.log("직전 발언자 메시지:", previousMessage ? previousMessage.content : "첫 발언");
+      console.log("직전 발언자 진영:", previousMessage ? previousMessage.stance : "없음");
+
+      console.log("\n=== 전체 메시지 히스토리 ===");
+      accumulatedMessages.forEach((msg, idx) => {
+        console.log(`${idx + 1}. ${msg.sender}(${msg.stance}): ${msg.content}`);
+      });
 
       const prompt =
         `당신은 ${name} MBTI 토론자입니다. 주제: "${topic}".\n\n` +
-        `지금까지의 토론 내용입니다:\n${messageTexts.join("\n")}\n\n` +
-        `${stance} 입장에서, 마치 실제 사람이 대화하는 것처럼 자연스럽게 말해주세요. ` +
-        `직전 발언자(${previousSpeaker})의 주장을 반드시 직접 인용하여 간단하게 언급한 후, 그에 대한 반박이나 새로운 관점을 제시해주세요. ` +
-        `반드시 정확히 두 문장으로만 답변해주세요. ` +
-        `첫 번째 문장에서는 직전 발언자의 주장을 인용하고 그에 대한 반박이나 새로운 관점을 제시하고, 두 번째 문장에서는 당신의 확장된 주장을 펼쳐주세요. ` +
-        `세 문장 이상으로 답변하지 마세요. ` +
-        `${stance} 입장에서 ${name} MBTI 성향을 말투에 반영하여 말하되 MBTI를 직접적으로 언급하지는 마세요. ` +
-        `반드시 존댓말을 사용하되, 너무 딱딱하거나 격식체로 말하지 말고 일상적인 대화처럼 자연스럽게 말해주세요.`;
+        `직전 발언자(${previousSpeaker})의 메시지:\n` +
+        `${previousMessage ? previousMessage.content : "첫 발언"}\n\n` +
+        `${stance} 입장에서 대화해주세요. ` +
+        `실제 사람이 대화하는 것처럼 자연스럽게 말해주세요.\n\n` +
+        `답변은 두 문장으로 해주세요:\n` +
+        `1. 첫 문장에서는 직전 발언자의 주장에 대한 반응을 보여주세요. (예: "음... 생명의 소중함을 강조하시는 건 이해가 가요. 하지만 그게 여성의 선택권을 제한할 이유가 될 수 있을까요?")` +
+        `2. 두 번째 문장에서는 ${stance} 입장의 핵심 주장을 펼쳐주세요.\n\n` +
+        `주의사항:\n` +
+        `- 실제 사람이 대화하는 것처럼 자연스럽게 말해주세요. (예: "음...", "글쎄요...", "아니요, 제 생각에는..." 등)` +
+        `- ${name} MBTI의 특성을 말투에 자연스럽게 반영해주세요.` +
+        `- MBTI를 직접적으로 언급하지 말고, 아웃풋에 대한 추가 파싱 및 핸들링이 없어도 되게끔 대화체로만 말해주세요.` +
+        `- 존댓말을 사용하되, 너무 격식적이지 않게 일상적인 대화체로 말해주세요.` +
+        `- JSON 형식이나 다른 구조화된 형식으로 응답하지 마세요. 순수한 대화체로만 응답해주세요.` +
+        `- 발언자 정보나 진영을 직접 언급하지 마세요. (예: "STP(찬성):" 같은 형식 사용 금지)`;
+
+      console.log("\n=== GPT 프롬프트 ===");
+      console.log(prompt);
 
       const reply = await callOpenAI([
         { role: "system", content: prompt },
-        ...messageTexts.map(msg => ({
-          role: "user",
-          content: msg
-        }))
+        ...messageHistory
       ]);
 
       if (!reply || !reply.content) {
@@ -517,15 +535,37 @@ export default function DiscussionPage() {
         return null;
       }
 
+      // JSON 형식 응답 처리
+      let content = removeQuotes(reply.content);
+      try {
+        // JSON 형식인지 확인
+        const jsonMatch = content.match(/^\{.*\}$/s);
+        if (jsonMatch) {
+          const jsonContent = JSON.parse(jsonMatch[0]);
+          if (jsonContent.content) {
+            content = jsonContent.content;
+          }
+        }
+      } catch (e) {
+        // JSON 파싱 실패 시 원본 내용 유지
+        console.log("응답이 JSON 형식이 아닙니다:", content);
+      }
+
+      // 발언자 정보나 진영이 포함된 경우 제거
+      content = content.replace(/^[^(]+\([^)]+\):\s*/g, '');
+
       const message = { 
         sender: name, 
-        content: removeQuotes(reply.content), 
+        content: content, 
         stance,
         mbti: name
       };
-      
-      console.log("생성된 메시지:", message);
-      
+    
+      console.log("\n=== 생성된 메시지 ===");
+      console.log("발언자:", message.sender);
+      console.log("진영:", message.stance);
+      console.log("내용:", message.content);
+        
       messages.push(message);
       return messages;
     } else if (currentRound === 3) {
