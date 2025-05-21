@@ -68,590 +68,219 @@ export default function DiscussionPage() {
   const { topic, personas, roles } = location.state || {};
 
   /* ---------- state ---------- */
-  const defaultRoles = { pro: ["User"], con: [] };
-  const safeRoles = roles || defaultRoles;
 
   const [messages, setMessages] = useState([]);
   const [userInput, setUserInput] = useState("");
   const [currentRound, setCurrentRound] = useState(1);
-  const [turnOrder, setTurnOrder] = useState([]);
   const [currentTurn, setCurrentTurn] = useState(0);
   const [isUserTurn, setIsUserTurn] = useState(false);
-  const [allRoundsMessages, setAllRoundsMessages] = useState([]);
   const [showEndModal, setShowEndModal] = useState(false);
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [isDiscussionActive, setIsDiscussionActive] = useState(true);
-  const [round3OpponentMessage, setRound3OpponentMessage] = useState(null);
-
   /* ---------- 유틸 ---------- */
-  const removeQuotes = (text) =>
-    !text ? text : text.replace(/['"]/g, "").trim();
-  const userStance = safeRoles.pro.includes("User") ? "찬성" : "반대";
-
-  /* ---------- 라운드 1 초기 메시지 ---------- */
   useEffect(() => {
     if (!topic || !personas) return;
 
-    // 각 진영의 참가자 목록 설정 (유저 제외)
-    const pros = safeRoles.pro.filter((p) => p !== "User");
-    const cons = safeRoles.con.filter((p) => p !== "User");
+    console.log(`currRound: ${currentRound}, currTurn: ${currentTurn}`);
+    console.log(`토론 주제: ${topic}`);
+    console.log(`전체 토론 참가자:`, roles);
 
-    // 참가자 정보 로깅
-    console.log("\n=== 참가자 정보 ===");
-    console.log("찬성 진영:", safeRoles.pro);
-    console.log("반대 진영:", safeRoles.con);
-    console.log("찬성 진영 (유저 제외):", pros);
-    console.log("반대 진영 (유저 제외):", cons);
-
-    // 유저의 진영에 따라 첫 발언자 순서 결정
-    // 유저는 항상 자신의 진영의 1번이 됨
-    const firstSpeakers = userStance === "찬성" 
-      ? ["User", cons[0]]  // 찬성1(유저) -> 반대1
-      : [pros[0], "User"]; // 찬성1 -> 반대1(유저)
-
-    console.log("\n=== 라운드 1 발언 순서 ===");
-    console.log("찬성 진영:", userStance === "찬성" ? ["User", pros[0]] : [pros[0], pros[1]]);
-    console.log("반대 진영:", userStance === "반대" ? ["User", cons[0]] : [cons[0], cons[1]]);
-    console.log("첫 발언 순서:", firstSpeakers);
-
-    setTurnOrder(firstSpeakers);
-
-    // 라운드 2의 발언 순서 설정
-    const round2Order = [
-      safeRoles.pro[1],     // 찬성2
-      safeRoles.con[1],     // 반대2
-      safeRoles.pro[0],     // 찬성1
-      safeRoles.con[0],     // 반대1
-      safeRoles.pro[1],     // 찬성2
-      safeRoles.con[1]      // 반대2
-    ];
-
-    // 라운드 3의 발언 순서 설정 (찬성1과 반대1만)
-    const round3Order = userStance === "찬성"
-      ? ["User", safeRoles.con[0]]  // 찬성1(유저) -> 반대1
-      : [safeRoles.pro[0], "User"]; // 찬성1 -> 반대1(유저)
-
-    // 순서 확인을 위한 로깅
-    console.log("\n=== 라운드 2 발언 순서 ===");
-    console.log("현재 참가자 정보:");
-    console.log("- 찬성1:", safeRoles.pro[0]);
-    console.log("- 찬성2:", safeRoles.pro[1]);
-    console.log("- 반대1:", safeRoles.con[0]);
-    console.log("- 반대2:", safeRoles.con[1]);
-    
-    console.log("\n전체 발언 순서:");
-    round2Order.forEach((speaker, idx) => {
-      const role = speaker === safeRoles.pro[0] ? "찬성1" :
-                  speaker === safeRoles.pro[1] ? "찬성2" :
-                  speaker === safeRoles.con[0] ? "반대1" : "반대2";
-      console.log(`${idx + 1}. ${role}(${speaker})`);
-    });
-
-    // 라운드 2 시작 시 발언 순서 업데이트
-    if (currentRound === 2) {
-      setTurnOrder(round2Order);
-    }
-
-    // 라운드 3 시작 시 발언 순서 업데이트
-    if (currentRound === 3) {
-      console.log("\n=== 라운드 3 발언 순서 설정 ===");
-      console.log("유저 진영:", userStance);
-      console.log("찬성1:", safeRoles.pro[0]);
-      console.log("반대1:", safeRoles.con[0]);
-      
-      // 유저의 진영에 따라 라운드 3의 발언 순서 설정
-      const finalRound3Order = userStance === "찬성"
-        ? ["User", safeRoles.con[0]]  // 찬성1(유저) -> 반대1
-        : [safeRoles.pro[0], "User"]; // 찬성1 -> 반대1(유저)
-      
-      console.log("라운드 3 발언 순서:", finalRound3Order);
-      setTurnOrder(finalRound3Order);
-    }
-
-    (async () => {
-      if (currentRound !== 1 || currentTurn !== 0) return;
-      const firstMsgs = [];
-
-      for (const name of firstSpeakers) {
-        if (name === "User") {
-          firstMsgs.push({ sender: "User", content: null, stance: userStance });
-          continue;
-        }
-        const stance = safeRoles.pro.includes(name) ? "찬성" : "반대";
-        const sys = {
-          role: "system",
-          content:
-            `당신은 ${name} MBTI 토론자입니다. 주제: "${topic}". ` +
-            `${stance} 입장에서 ${name} MBTI 성향을 말투에 반영하여 한두 문장 첫 발언하되, 당신의 MBTI를 직접적으로 언급하는 답변은 하지마`,
-        };
-        const reply = await callOpenAI([sys]);
-        firstMsgs.push({
-          sender: name,
-          content: removeQuotes(reply.content),
-          stance,
-          mbti: name
-        });
-      }
-      setAllRoundsMessages(firstMsgs);
-    })();
-  }, [topic, personas, safeRoles, currentRound]);
-
-  /* ---------- 라운드 2·3 GPT 메시지 추가 ---------- */
-  useEffect(() => {
-    if (currentRound === 2 && !isUserTurn && isDiscussionActive) {
-      (async () => {
-        const newMsgs = await getMessages();
-        if (newMsgs && newMsgs.length > 0) {
-          // 마지막 턴인 경우 중복 방지를 위해 메시지 추가 전에 확인
-          if (currentTurn === 5) {
-            const lastMessage = allRoundsMessages[allRoundsMessages.length - 1];
-            if (lastMessage && lastMessage.content === newMsgs[0].content) {
-              // 이미 동일한 메시지가 있다면 추가하지 않음
-              setCurrentRound(3);
-              setCurrentTurn(0);
-              
-              // 라운드 3 상대방 메시지 생성
-              const opponentMsg = await generateRound3OpponentMessage();
-              setRound3OpponentMessage(opponentMsg);
-
-              // 유저가 찬성인 경우에만 유저 입력 대기
-              if (userStance === "찬성") {
-                setIsUserTurn(true);
-              } else {
-                // 반대인 경우 상대방 메시지를 바로 표시
-                if (opponentMsg) {
-                  setMessages(prev => [...prev, opponentMsg]);
-                  setAllRoundsMessages(prev => [...prev, opponentMsg]);
-                }
-                setIsUserTurn(true);
-              }
-              return;
-            }
-          }
-
-          setAllRoundsMessages(prev => [...prev, ...newMsgs]);
-          setMessages(prev => [...prev, ...newMsgs]);
-          
-          if (currentTurn < 5) {
-            advanceTurn({ 1: 2, 2: 6, 3: 2 });
-          } else if (currentTurn === 5) {
-            setCurrentRound(3);
-            setCurrentTurn(0);
+    switch(currentRound){
+      case 1:
+        if(currentTurn === 0) {
+          // check user stance
+          if (roles.pro.includes("User")) {
+            // 유저 찬성 => 선 발언
+            setIsUserTurn(true);
             
-            // 라운드 3 상대방 메시지 생성
-            const opponentMsg = await generateRound3OpponentMessage();
-            setRound3OpponentMessage(opponentMsg);
+          }
+          else {
+            // 유저 반대 => LLM이 선발언
+            setMessages(prev => [...prev, {
+              sender: currentTurn === 0 ? roles.pro[0] : roles.con[0],
+              content: "입론합니다. 저는 찬성합니다.",
+              stance: currentTurn === 0 ? "찬성" : "반대",
+              mbti: currentTurn === 0 ? roles.pro[0] : roles.con[0],
+            }]);
 
-            // 유저가 찬성인 경우에만 유저 입력 대기
-            if (userStance === "찬성") {
-              setIsUserTurn(true);
-            } else {
-              // 반대인 경우 상대방 메시지를 바로 표시
-              if (opponentMsg) {
-                setMessages(prev => [...prev, opponentMsg]);
-                setAllRoundsMessages(prev => [...prev, opponentMsg]);
-              }
-              setIsUserTurn(true);
-            }
+          setCurrentTurn(prev => prev + 1);
+          console.log("현재 턴", currentTurn);
           }
         }
-      })();
+        else {
+          if (roles.pro.includes("User")) {
+            // LLM 발언
+            // 유저 찬성 => LLM이 후발언
+            setMessages(prev => [...prev, {
+              sender: currentTurn === 0 ? roles.pro[0] : roles.con[0],
+              content: "입론합니다. 저는 반대합니다.",
+              stance: currentTurn === 0 ? "찬성" : "반대",
+              mbti: currentTurn === 0 ? roles.pro[0] : roles.con[0],
+            }]);
+            setCurrentRound(prev => prev + 1);
+            setCurrentTurn(0);
+          }
+          else {
+            setIsUserTurn(true);
+          }
+        }
+        
+        break;
+      case 2:
+        console.log("발화 횟수: ", messages.length);
+
+        // 라운드 2 종료 체크
+        if (currentTurn === 6) {
+          setCurrentRound(3);
+          setCurrentTurn(0);
+
+          return;
+        }
+
+        // 라운드 2의 발화 순서 정의
+        const round2Order = [
+          roles.pro[1],     // 찬성2
+          roles.con[1],     // 반대2
+          roles.pro[0],     // 찬성1
+          roles.con[0],     // 반대1
+          roles.pro[1],     // 찬성2
+          roles.con[1]      // 반대2
+        ];
+
+
+        // 현재 발화자 결정
+        const currentSpeaker = round2Order[currentTurn];
+
+        // 유저 차례인 경우
+        if (currentSpeaker === "User") {
+          setIsUserTurn(true);
+          return; // 유저 입력을 기다림
+        }
+
+        // AI 발화
+        setMessages(prev => [...prev, {
+          sender: currentSpeaker,
+          content: "반론중입니다.",
+          stance: roles.pro.includes(currentSpeaker) ? "찬성" : "반대",
+          mbti: currentSpeaker
+        }]);
+        setCurrentTurn(prev => prev + 1);
+
+        
+        break;
+      case 3:
+        if (roles.pro.includes("User")) {
+          if(currentTurn === 0) {
+            setIsUserTurn(true);
+          }
+          else{
+            setMessages(prev => [...prev, {
+              sender: currentTurn === 0 ? roles.pro[0] : roles.con[0],
+              content: "최종 반론입니다.",
+              stance: currentTurn === 0 ? "찬성" : "반대",
+              mbti: currentTurn === 0 ? roles.pro[0] : roles.con[0],
+            }]);
+            // setCurrentTurn(prev => prev + 1);
+            setShowVoteModal(true);
+          }
+        }
+        else{
+          if(currentTurn === 0) {
+            setMessages(prev => [...prev, {
+              sender: currentTurn === 0 ? roles.pro[0] : roles.con[0],
+              content: "최종 반론입니다.",
+              stance: currentTurn === 0 ? "찬성" : "반대",
+              mbti: currentTurn === 0 ? roles.pro[0] : roles.con[0],
+            }]);
+            setCurrentTurn(prev => prev + 1);
+          }
+          else{
+            setIsUserTurn(true);
+          }
+        }
+        break;
+      default:
+        break;
     }
-  }, [currentRound, currentTurn, isUserTurn, isDiscussionActive, userStance, allRoundsMessages]);
 
-  /* ---------- 라운드 3 상대방 메시지 생성 함수 ---------- */
-  const generateRound3OpponentMessage = async () => {
-    const messageTexts = allRoundsMessages
-      .filter(msg => msg && msg.content)
-      .map(msg => `${msg.content}`);
+  }, [topic, personas, roles, currentRound, currentTurn]);
 
-    // 상대방 정보 설정
-    const opponentName = userStance === "찬성" ? safeRoles.con[0] : safeRoles.pro[0];
-    const opponentStance = userStance === "찬성" ? "반대" : "찬성";
-
-    const prompt =
-      `당신은 ${opponentName} MBTI 토론자입니다. 주제: "${topic}".\n\n` +
-      `지금까지의 전체 토론 내용입니다:\n${messageTexts.join("\n")}\n\n` +
-      `위의 모든 발언을 참고하여, ${opponentStance} 입장에서 최종 변론을 해주세요. ` +
-      `지금까지의 토론을 종합하여 가장 강력한 주장을 펼쳐주세요. ` +
-      `반드시 두 문장 이내로만 명료하게 답변해주세요. ` +
-      `${opponentStance} 입장에서 ${opponentName} MBTI 성향을 말투에 반영하여 성격을 말투에 반영하되 MBTI를 직접적으로 언급하지는 마세요. ` +
-      `반드시 존댓말을 사용해주세요.`;
-
-    const reply = await callOpenAI([
-      { role: "system", content: prompt },
-      ...messageTexts.map(msg => ({
-        role: "user",
-        content: msg
-      }))
-    ]);
-
-    if (reply && reply.content) {
-      return {
-        sender: opponentName,
-        content: removeQuotes(reply.content),
-        stance: opponentStance,
-        mbti: opponentName
-      };
-    }
-    return null;
-  };
-
-  /* ---------- 메시지 한 개씩 출력 ---------- */
   useEffect(() => {
-    const maxTurns = { 1: 2, 2: 6, 3: 2 };
-
-    if (!isDiscussionActive || currentRound === 3) {
-      return;
-    }
-
-    const roundStartIdx = { 1: 0, 2: 2, 3: 8 };
-    const idx = roundStartIdx[currentRound] + currentTurn;
     
-    // 각 진영의 참가자 목록 설정 (유저 제외)
-    const pros = safeRoles.pro.filter((p) => p !== "User");
-    const cons = safeRoles.con.filter((p) => p !== "User");
-
-    // 라운드 2의 발언 순서 설정
-    const round2Order = [
-      safeRoles.pro[1],     // 찬성2
-      safeRoles.con[1],     // 반대2
-      safeRoles.pro[0],     // 찬성1
-      safeRoles.con[0],     // 반대1
-      safeRoles.pro[1],     // 찬성2
-      safeRoles.con[1]      // 반대2
-    ];
-
-    // 라운드 3의 발언 순서 설정 (찬성1과 반대1만)
-    const round3Order = userStance === "찬성"
-      ? ["User", safeRoles.con[0]]  // 찬성1(유저) -> 반대1
-      : [pros[0], "User"];          // 찬성1 -> 반대1(유저)
-    
-    // 현재 라운드의 발언 순서 결정
-    const currentOrder = currentRound === 2 ? round2Order : 
-                        currentRound === 3 ? round3Order : 
-                        turnOrder;
-    
-    // 유저 차례인지 먼저 확인
-    const isCurrentUserTurn = currentOrder[currentTurn] === "User";
-    
-    if (isCurrentUserTurn) {
-      console.log("\n=== 유저 차례 ===");
-      setIsUserTurn(true);
-      return;
-    }
-
-    // 현재 발언자 확인
-    const currentSpeaker = currentOrder[currentTurn];
-    console.log(`\n=== ${currentSpeaker}의 발언 차례 ===`);
-
-    const timer = setTimeout(async () => {
-      if (!allRoundsMessages[idx]) return;
-
-      const msg = allRoundsMessages[idx];
-      if (msg.sender === "User") {
-        console.log("\n=== 유저 차례 ===");
-        setIsUserTurn(true);
-        return;
-      }
-
-      // 중복 메시지 체크
-      const isDuplicate = messages.some(m => 
-        m.sender === msg.sender && 
-        m.content === msg.content && 
-        m.stance === msg.stance
-      );
-      
-      if (!isDuplicate) {
-        setMessages((prev) => [...prev, msg]);
-      }
-      
-      advanceTurn(maxTurns);
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [allRoundsMessages, currentTurn, currentRound, turnOrder, safeRoles, userStance, isDiscussionActive, messages]);
-
-  const advanceTurn = (maxTurns) => {
-    console.log("\n=== 턴 진행 ===");
-    console.log("현재 라운드:", currentRound);
-    console.log("현재 턴:", currentTurn);
-    console.log("최대 턴:", maxTurns[currentRound]);
-
-    setCurrentTurn((prev) => {
-      const nextTurn = prev + 1;
-      console.log("다음 턴:", nextTurn);
-      
-      // 라운드 전환 체크
-      if (currentRound === 1 && nextTurn === maxTurns[1]) {
-        console.log("라운드 1 종료, 라운드 2 시작");
-        setCurrentRound(2);
-        return 0;
-      } else if (currentRound === 2 && nextTurn === maxTurns[2]) {
-        console.log("라운드 2 종료, 라운드 3 시작");
-        setCurrentRound(3);
-        return 0;
-      }
-      return nextTurn;
-    });
-  };
-
-  /* ---------- 유저 전송 ---------- */
-  const handleSend = () => {
-    if (!userInput.trim() || !isDiscussionActive) return;
-    const newMsg = { sender: "User", content: userInput, stance: userStance };
-
-    setMessages((prev) => [...prev, newMsg]);
-    setAllRoundsMessages((prev) => {
-      const up = [...prev];
-      const roundStartIdx = { 1: 0, 2: 2, 3: 8 };
-      const idx = roundStartIdx[currentRound] + currentTurn;
-      up[idx] = newMsg;
-      return up;
-    });
-
-    setUserInput("");
-    setIsUserTurn(false);
-    
-    // 라운드 3의 경우
-    if (currentRound === 3) {
-      // 찬성인 경우에만 상대방의 미리 생성된 메시지 표시
-      if (userStance === "찬성" && round3OpponentMessage) {
-        setMessages(prev => [...prev, round3OpponentMessage]);
-        setAllRoundsMessages(prev => [...prev, round3OpponentMessage]);
-      }
-      // 투표 모달 표시 및 토론 종료
-      setShowVoteModal(true);
-      setIsDiscussionActive(false);
-    } else {
-      advanceTurn({ 1: 2, 2: 6, 3: 2 });
-    }
-  };
-
-  /* ---------- GPT 메시지 생성 ---------- */
-  const getMessages = async () => {
-    // 라운드 3는 미리 생성된 메시지를 사용하므로 여기서는 처리하지 않음
-    if (currentRound === 3) {
-      return [];
-    }
-
-    // 각 진영의 참가자 목록 설정 (유저 제외)
-    const pros = safeRoles.pro.filter((p) => p !== "User");
-    const cons = safeRoles.con.filter((p) => p !== "User");
-
-    // 라운드 2의 발언 순서 설정
-    const round2Order = [
-      safeRoles.pro[1],     // 찬성2
-      safeRoles.con[1],     // 반대2
-      safeRoles.pro[0],     // 찬성1
-      safeRoles.con[0],     // 반대1
-      safeRoles.pro[1],     // 찬성2
-      safeRoles.con[1]      // 반대2
-    ];
-
-    // 라운드 3의 발언 순서 설정 (찬성1과 반대1만)
-    const round3Order = userStance === "찬성"
-      ? ["User", safeRoles.con[0]]  // 찬성1(유저) -> 반대1
-      : [pros[0], "User"];          // 찬성1 -> 반대1(유저)
-
-    // 현재 라운드에 따른 발언 순서 결정
-    const currentOrder = currentRound === 2 ? round2Order : 
-                        currentRound === 3 ? round3Order : 
-                        turnOrder;
-
-    // 현재 발언자가 유저인 경우 메시지 생성 건너뛰기
-    const currentSpeaker = currentOrder[currentTurn];
-    if (currentSpeaker === "User") {
-      console.log("유저 차례 감지 - 메시지 생성 중단");
-      setIsUserTurn(true);
-      return [];
-    }
-
-    const messages = [];
-    let accumulatedMessages = [...allRoundsMessages]; // 현재까지의 모든 메시지 복사
-    
-    // 라운드 2는 순차적으로 처리
-    if (currentRound === 2) {
-      console.log("\n=== 라운드 2 메시지 생성 시작 ===");
-      console.log("현재 턴:", currentTurn);
-      console.log("남은 턴:", round2Order.length - currentTurn);
-
-      // 현재 턴의 발화자만 처리
-      const name = currentOrder[currentTurn];
-      const stance = safeRoles.pro.includes(name) ? "찬성" : "반대";
-      
-      // 메시지 히스토리를 자연스러운 대화 형식으로 변환
-      const messageHistory = accumulatedMessages
-        .filter(msg => msg && msg.content)
-        .map(msg => ({
-          role: "user",
-          content: msg.content
-        }));
-
-      // 직전 발언자와 메시지 확인
-      const previousSpeaker = currentTurn > 0 ? currentOrder[currentTurn - 1] : null;
-      const previousMessage = previousSpeaker ? 
-        accumulatedMessages[accumulatedMessages.length - 1] : null;
-
-      console.log("\n=== 발언자 정보 ===");
-      console.log("현재 발언자:", name);
-      console.log("현재 발언자 진영:", stance);
-      console.log("직전 발언자:", previousSpeaker);
-      console.log("직전 발언자 메시지:", previousMessage ? previousMessage.content : "첫 발언");
-      console.log("직전 발언자 진영:", previousMessage ? previousMessage.stance : "없음");
-
-      console.log("\n=== 전체 메시지 히스토리 ===");
-      accumulatedMessages.forEach((msg, idx) => {
-        console.log(`${idx + 1}. ${msg.sender}(${msg.stance}): ${msg.content}`);
-      });
-
-      const prompt =
-        `당신은 ${name} MBTI 토론자입니다. 주제: "${topic}".\n\n` +
-        `직전 발언자(${previousSpeaker})의 메시지:\n` +
-        `${previousMessage ? previousMessage.content : "첫 발언"}\n\n` +
-        `${stance} 입장에서 대화해주세요. ` +
-        `실제 사람이 대화하는 것처럼 자연스럽게 말해주세요.\n\n` +
-        `답변은 두 문장으로 해주세요:\n` +
-        `1. 첫 문장에서는 직전 발언자의 주장에 대한 반응을 보여주세요. (예: "음... 생명의 소중함을 강조하시는 건 이해가 가요. 하지만 그게 여성의 선택권을 제한할 이유가 될 수 있을까요?")` +
-        `2. 두 번째 문장에서는 ${stance} 입장의 핵심 주장을 펼쳐주세요.\n\n` +
-        `주의사항:\n` +
-        `- 실제 사람이 대화하는 것처럼 자연스럽게 말해주세요. (예: "음...", "글쎄요...", "아니요, 제 생각에는..." 등)` +
-        `- ${name} MBTI의 특성을 말투에 자연스럽게 반영해주세요.` +
-        `- MBTI를 직접적으로 언급하지 말고, 아웃풋에 대한 추가 파싱 및 핸들링이 없어도 되게끔 대화체로만 말해주세요.` +
-        `- 존댓말을 사용하되, 너무 격식적이지 않게 일상적인 대화체로 말해주세요.` +
-        `- JSON 형식이나 다른 구조화된 형식으로 응답하지 마세요. 순수한 대화체로만 응답해주세요.` +
-        `- 발언자 정보나 진영을 직접 언급하지 마세요. (예: "STP(찬성):" 같은 형식 사용 금지)`;
-
-      console.log("\n=== GPT 프롬프트 ===");
-      console.log(prompt);
-
-      const reply = await callOpenAI([
-        { role: "system", content: prompt },
-        ...messageHistory
-      ]);
-
-      if (!reply || !reply.content) {
-        console.error('Invalid reply from OpenAI');
-        return null;
-      }
-
-      // JSON 형식 응답 처리
-      let content = removeQuotes(reply.content);
-      try {
-        // JSON 형식인지 확인
-        const jsonMatch = content.match(/^\{.*\}$/s);
-        if (jsonMatch) {
-          const jsonContent = JSON.parse(jsonMatch[0]);
-          if (jsonContent.content) {
-            content = jsonContent.content;
-          }
-        }
-      } catch (e) {
-        // JSON 파싱 실패 시 원본 내용 유지
-        console.log("응답이 JSON 형식이 아닙니다:", content);
-      }
-
-      // 발언자 정보나 진영이 포함된 경우 제거
-      content = content.replace(/^[^(]+\([^)]+\):\s*/g, '');
-
-      const message = { 
-        sender: name, 
-        content: content, 
-        stance,
-        mbti: name
-      };
-    
-      console.log("\n=== 생성된 메시지 ===");
-      console.log("발언자:", message.sender);
-      console.log("진영:", message.stance);
-      console.log("내용:", message.content);
-        
-      messages.push(message);
-      return messages;
-    } else if (currentRound === 3) {
-      // 라운드 3는 전체 토론 내용을 참고
-      const messageTexts = allRoundsMessages
-        .filter(msg => msg && msg.content)
-        .map(msg => `${msg.content}`);
-
-      // 현재 턴의 발화자만 처리
-      const name = currentOrder[currentTurn];
-      
-      // 유저 차례인 경우 건너뛰기
-      if (name === "User") {
-        console.log("라운드 3 유저 차례 감지 - 메시지 생성 중단");
-        setIsUserTurn(true);
-        return [];
-      }
-
-      const stance = safeRoles.pro.includes(name) ? "찬성" : "반대";
-      
-      const prompt =
-        `당신은 ${name} MBTI 토론자입니다. 주제: "${topic}".\n\n` +
-        `지금까지의 전체 토론 내용입니다:\n${messageTexts.join("\n")}\n\n` +
-        `위의 모든 발언을 참고하여, ${stance} 입장에서 최종 변론을 해주세요. ` +
-        `지금까지의 토론을 종합하여 가장 강력한 주장을 펼쳐주세요. ` +
-        `반드시 두 문장 이내로만 명료하게 답변해주세요. ` +
-        `${stance} 입장에서 ${name} MBTI 성향을 말투에 반영하여 성격을 말투에 반영하되 MBTI를 직접적으로 언급하지는 마세요. ` +
-        `반드시 존댓말을 사용해주세요.`;
-
-      const reply = await callOpenAI([
-        { role: "system", content: prompt },
-        ...messageTexts.map(msg => ({
-          role: "user",
-          content: msg
-        }))
-      ]);
-
-      if (!reply || !reply.content) {
-        console.error('Invalid reply from OpenAI');
-        return null;
-      }
-
-      messages.push({ 
-        sender: name, 
-        content: removeQuotes(reply.content), 
-        stance,
-        mbti: name
-      });
-      return messages;
-    } else {
-      // 라운드 1은 첫 발언만
-      for (const name of currentOrder) {
-        const stance = safeRoles.pro.includes(name) ? "찬성" : "반대";
-        
-        const prompt =
-          `당신은 ${name} MBTI 토론자입니다. 주제: "${topic}". ` +
-          `${stance} 입장에서 ${name} MBTI 성향을 말투에 반영하여 첫 발언해주세요. ` +
-          `반드시 두 문장 이내로만 명료하게 답변해주세요. ` +
-          `MBTI를 직접 언급하지는 마세요. ` +
-          `반드시 존댓말을 사용해주세요.`;
-
-        const reply = await callOpenAI([
-          { role: "system", content: prompt }
-        ]);
-
-        if (!reply || !reply.content) {
-          console.error('Invalid reply from OpenAI');
-          return null;
-        }
-
-        messages.push({ 
-          sender: name, 
-          content: removeQuotes(reply.content), 
-          stance,
-          mbti: name
-        });
-      }
-      return messages;
-    }
-  };
+  }, []);
 
   const roundLabels = {
     1: "🗣️ 입론 : 나의 첫 주장을 펼쳐요",
     2: "🔄 반론 : 상대 의견에 반박해요",
     3: "🎯 최종 변론 : 내 입장을 정리해요",
   };
+
+  const handleSend = () => {
+    if (!userInput.trim()) return;
+
+    switch(currentRound) {
+      case 1:
+        // 유저 입력에 대한 처리
+        setMessages(prev => [...prev, {
+          sender: "User",
+          content: userInput,
+          stance: currentTurn === 0 ? "찬성" : "반대",
+          mbti: "User",
+        }]);
+        setUserInput("");
+        setIsUserTurn(false);
+
+        // 턴 처리
+        if(currentTurn === 1) {
+          // 입론은 턴이 두번밖에 없으니 바로 다음 라운드로 넘기기.
+          console.log("입론 종료");
+          setCurrentRound(prev => prev + 1);
+          setCurrentTurn(0);
+        }
+        else {
+          setCurrentTurn(prev => prev + 1);
+        }
+        break;
+      case 2:
+        // 유저 입력 처리
+        setMessages(prev => [...prev, {
+          sender: "User",
+          content: userInput,
+          stance: roles.pro.includes("User") ? "찬성" : "반대",
+          mbti: "User",
+        }]);
+        setUserInput("");
+        setIsUserTurn(false);
+        setCurrentTurn(prev => prev + 1);
+        break;
+      case 3:
+        setMessages(prev => [...prev, {
+          sender: "User",
+          content: userInput,
+          stance: currentTurn === 0 ? "찬성" : "반대",
+          mbti: "User",
+        }]);
+
+        setUserInput("");
+        setIsUserTurn(false);
+
+        if(currentTurn === 0){
+          // user 찬성
+          setCurrentTurn(prev => prev + 1);
+        }
+        else{
+          // user 반대
+          setShowVoteModal(true);
+
+        }
+
+        break;
+      default:
+        break;
+    }
+  };
+  
+  
 
   /* ---------- 렌더 ---------- */
   return (
