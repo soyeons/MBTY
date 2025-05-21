@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import Modal from "react-modal";
+import AudioRecorder from "../components/AudioRecorder";
 
 /* ---------- MBTI 프로필 이미지 ---------- */
 import isfj from "../assets/ISFJ.png";
@@ -62,6 +63,21 @@ async function callOpenAI(messages) {
   return data.choices[0].message;
 }
 
+/* ---------- Whisper STT 호출 ---------- */
+async function callSpeechToText(audioBlob) {
+  const form = new FormData();
+  form.append("file", audioBlob, "voice.webm");
+  form.append("model", "whisper-1");
+
+  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+    body: form,
+  });
+  const data = await res.json();
+  return data.text;
+}
+
 export default function DiscussionPage() {
   const location = useLocation();
   const navigate = useNavigate(); // 홈 이동
@@ -105,31 +121,39 @@ export default function DiscussionPage() {
 
     // 유저의 진영에 따라 첫 발언자 순서 결정
     // 유저는 항상 자신의 진영의 1번이 됨
-    const firstSpeakers = userStance === "찬성" 
-      ? ["User", cons[0]]  // 찬성1(유저) -> 반대1
-      : [pros[0], "User"]; // 찬성1 -> 반대1(유저)
+    const firstSpeakers =
+      userStance === "찬성"
+        ? ["User", cons[0]] // 찬성1(유저) -> 반대1
+        : [pros[0], "User"]; // 찬성1 -> 반대1(유저)
 
     console.log("\n=== 라운드 1 발언 순서 ===");
-    console.log("찬성 진영:", userStance === "찬성" ? ["User", pros[0]] : [pros[0], pros[1]]);
-    console.log("반대 진영:", userStance === "반대" ? ["User", cons[0]] : [cons[0], cons[1]]);
+    console.log(
+      "찬성 진영:",
+      userStance === "찬성" ? ["User", pros[0]] : [pros[0], pros[1]]
+    );
+    console.log(
+      "반대 진영:",
+      userStance === "반대" ? ["User", cons[0]] : [cons[0], cons[1]]
+    );
     console.log("첫 발언 순서:", firstSpeakers);
 
     setTurnOrder(firstSpeakers);
 
     // 라운드 2의 발언 순서 설정
     const round2Order = [
-      safeRoles.pro[1],     // 찬성2
-      safeRoles.con[1],     // 반대2
-      safeRoles.pro[0],     // 찬성1
-      safeRoles.con[0],     // 반대1
-      safeRoles.pro[1],     // 찬성2
-      safeRoles.con[1]      // 반대2
+      safeRoles.pro[1], // 찬성2
+      safeRoles.con[1], // 반대2
+      safeRoles.pro[0], // 찬성1
+      safeRoles.con[0], // 반대1
+      safeRoles.pro[1], // 찬성2
+      safeRoles.con[1], // 반대2
     ];
 
     // 라운드 3의 발언 순서 설정 (찬성1과 반대1만)
-    const round3Order = userStance === "찬성"
-      ? ["User", safeRoles.con[0]]  // 찬성1(유저) -> 반대1
-      : [safeRoles.pro[0], "User"]; // 찬성1 -> 반대1(유저)
+    const round3Order =
+      userStance === "찬성"
+        ? ["User", safeRoles.con[0]] // 찬성1(유저) -> 반대1
+        : [safeRoles.pro[0], "User"]; // 찬성1 -> 반대1(유저)
 
     // 순서 확인을 위한 로깅
     console.log("\n=== 라운드 2 발언 순서 ===");
@@ -138,12 +162,17 @@ export default function DiscussionPage() {
     console.log("- 찬성2:", safeRoles.pro[1]);
     console.log("- 반대1:", safeRoles.con[0]);
     console.log("- 반대2:", safeRoles.con[1]);
-    
+
     console.log("\n전체 발언 순서:");
     round2Order.forEach((speaker, idx) => {
-      const role = speaker === safeRoles.pro[0] ? "찬성1" :
-                  speaker === safeRoles.pro[1] ? "찬성2" :
-                  speaker === safeRoles.con[0] ? "반대1" : "반대2";
+      const role =
+        speaker === safeRoles.pro[0]
+          ? "찬성1"
+          : speaker === safeRoles.pro[1]
+          ? "찬성2"
+          : speaker === safeRoles.con[0]
+          ? "반대1"
+          : "반대2";
       console.log(`${idx + 1}. ${role}(${speaker})`);
     });
 
@@ -158,12 +187,13 @@ export default function DiscussionPage() {
       console.log("유저 진영:", userStance);
       console.log("찬성1:", safeRoles.pro[0]);
       console.log("반대1:", safeRoles.con[0]);
-      
+
       // 유저의 진영에 따라 라운드 3의 발언 순서 설정
-      const finalRound3Order = userStance === "찬성"
-        ? ["User", safeRoles.con[0]]  // 찬성1(유저) -> 반대1
-        : [safeRoles.pro[0], "User"]; // 찬성1 -> 반대1(유저)
-      
+      const finalRound3Order =
+        userStance === "찬성"
+          ? ["User", safeRoles.con[0]] // 찬성1(유저) -> 반대1
+          : [safeRoles.pro[0], "User"]; // 찬성1 -> 반대1(유저)
+
       console.log("라운드 3 발언 순서:", finalRound3Order);
       setTurnOrder(finalRound3Order);
     }
@@ -189,7 +219,7 @@ export default function DiscussionPage() {
           sender: name,
           content: removeQuotes(reply.content),
           stance,
-          mbti: name
+          mbti: name,
         });
       }
       setAllRoundsMessages(firstMsgs);
@@ -209,7 +239,7 @@ export default function DiscussionPage() {
               // 이미 동일한 메시지가 있다면 추가하지 않음
               setCurrentRound(3);
               setCurrentTurn(0);
-              
+
               // 라운드 3 상대방 메시지 생성
               const opponentMsg = await generateRound3OpponentMessage();
               setRound3OpponentMessage(opponentMsg);
@@ -220,8 +250,8 @@ export default function DiscussionPage() {
               } else {
                 // 반대인 경우 상대방 메시지를 바로 표시
                 if (opponentMsg) {
-                  setMessages(prev => [...prev, opponentMsg]);
-                  setAllRoundsMessages(prev => [...prev, opponentMsg]);
+                  setMessages((prev) => [...prev, opponentMsg]);
+                  setAllRoundsMessages((prev) => [...prev, opponentMsg]);
                 }
                 setIsUserTurn(true);
               }
@@ -229,15 +259,15 @@ export default function DiscussionPage() {
             }
           }
 
-          setAllRoundsMessages(prev => [...prev, ...newMsgs]);
-          setMessages(prev => [...prev, ...newMsgs]);
-          
+          setAllRoundsMessages((prev) => [...prev, ...newMsgs]);
+          setMessages((prev) => [...prev, ...newMsgs]);
+
           if (currentTurn < 5) {
             advanceTurn({ 1: 2, 2: 6, 3: 2 });
           } else if (currentTurn === 5) {
             setCurrentRound(3);
             setCurrentTurn(0);
-            
+
             // 라운드 3 상대방 메시지 생성
             const opponentMsg = await generateRound3OpponentMessage();
             setRound3OpponentMessage(opponentMsg);
@@ -248,8 +278,8 @@ export default function DiscussionPage() {
             } else {
               // 반대인 경우 상대방 메시지를 바로 표시
               if (opponentMsg) {
-                setMessages(prev => [...prev, opponentMsg]);
-                setAllRoundsMessages(prev => [...prev, opponentMsg]);
+                setMessages((prev) => [...prev, opponentMsg]);
+                setAllRoundsMessages((prev) => [...prev, opponentMsg]);
               }
               setIsUserTurn(true);
             }
@@ -257,16 +287,24 @@ export default function DiscussionPage() {
         }
       })();
     }
-  }, [currentRound, currentTurn, isUserTurn, isDiscussionActive, userStance, allRoundsMessages]);
+  }, [
+    currentRound,
+    currentTurn,
+    isUserTurn,
+    isDiscussionActive,
+    userStance,
+    allRoundsMessages,
+  ]);
 
   /* ---------- 라운드 3 상대방 메시지 생성 함수 ---------- */
   const generateRound3OpponentMessage = async () => {
     const messageTexts = allRoundsMessages
-      .filter(msg => msg && msg.content)
-      .map(msg => `${msg.content}`);
+      .filter((msg) => msg && msg.content)
+      .map((msg) => `${msg.content}`);
 
     // 상대방 정보 설정
-    const opponentName = userStance === "찬성" ? safeRoles.con[0] : safeRoles.pro[0];
+    const opponentName =
+      userStance === "찬성" ? safeRoles.con[0] : safeRoles.pro[0];
     const opponentStance = userStance === "찬성" ? "반대" : "찬성";
 
     const prompt =
@@ -280,10 +318,10 @@ export default function DiscussionPage() {
 
     const reply = await callOpenAI([
       { role: "system", content: prompt },
-      ...messageTexts.map(msg => ({
+      ...messageTexts.map((msg) => ({
         role: "user",
-        content: msg
-      }))
+        content: msg,
+      })),
     ]);
 
     if (reply && reply.content) {
@@ -291,7 +329,7 @@ export default function DiscussionPage() {
         sender: opponentName,
         content: removeQuotes(reply.content),
         stance: opponentStance,
-        mbti: opponentName
+        mbti: opponentName,
       };
     }
     return null;
@@ -307,34 +345,38 @@ export default function DiscussionPage() {
 
     const roundStartIdx = { 1: 0, 2: 2, 3: 8 };
     const idx = roundStartIdx[currentRound] + currentTurn;
-    
+
     // 각 진영의 참가자 목록 설정 (유저 제외)
     const pros = safeRoles.pro.filter((p) => p !== "User");
     const cons = safeRoles.con.filter((p) => p !== "User");
 
     // 라운드 2의 발언 순서 설정
     const round2Order = [
-      safeRoles.pro[1],     // 찬성2
-      safeRoles.con[1],     // 반대2
-      safeRoles.pro[0],     // 찬성1
-      safeRoles.con[0],     // 반대1
-      safeRoles.pro[1],     // 찬성2
-      safeRoles.con[1]      // 반대2
+      safeRoles.pro[1], // 찬성2
+      safeRoles.con[1], // 반대2
+      safeRoles.pro[0], // 찬성1
+      safeRoles.con[0], // 반대1
+      safeRoles.pro[1], // 찬성2
+      safeRoles.con[1], // 반대2
     ];
 
     // 라운드 3의 발언 순서 설정 (찬성1과 반대1만)
-    const round3Order = userStance === "찬성"
-      ? ["User", safeRoles.con[0]]  // 찬성1(유저) -> 반대1
-      : [pros[0], "User"];          // 찬성1 -> 반대1(유저)
-    
+    const round3Order =
+      userStance === "찬성"
+        ? ["User", safeRoles.con[0]] // 찬성1(유저) -> 반대1
+        : [pros[0], "User"]; // 찬성1 -> 반대1(유저)
+
     // 현재 라운드의 발언 순서 결정
-    const currentOrder = currentRound === 2 ? round2Order : 
-                        currentRound === 3 ? round3Order : 
-                        turnOrder;
-    
+    const currentOrder =
+      currentRound === 2
+        ? round2Order
+        : currentRound === 3
+        ? round3Order
+        : turnOrder;
+
     // 유저 차례인지 먼저 확인
     const isCurrentUserTurn = currentOrder[currentTurn] === "User";
-    
+
     if (isCurrentUserTurn) {
       console.log("\n=== 유저 차례 ===");
       setIsUserTurn(true);
@@ -356,21 +398,31 @@ export default function DiscussionPage() {
       }
 
       // 중복 메시지 체크
-      const isDuplicate = messages.some(m => 
-        m.sender === msg.sender && 
-        m.content === msg.content && 
-        m.stance === msg.stance
+      const isDuplicate = messages.some(
+        (m) =>
+          m.sender === msg.sender &&
+          m.content === msg.content &&
+          m.stance === msg.stance
       );
-      
+
       if (!isDuplicate) {
         setMessages((prev) => [...prev, msg]);
       }
-      
+
       advanceTurn(maxTurns);
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [allRoundsMessages, currentTurn, currentRound, turnOrder, safeRoles, userStance, isDiscussionActive, messages]);
+  }, [
+    allRoundsMessages,
+    currentTurn,
+    currentRound,
+    turnOrder,
+    safeRoles,
+    userStance,
+    isDiscussionActive,
+    messages,
+  ]);
 
   const advanceTurn = (maxTurns) => {
     console.log("\n=== 턴 진행 ===");
@@ -381,7 +433,7 @@ export default function DiscussionPage() {
     setCurrentTurn((prev) => {
       const nextTurn = prev + 1;
       console.log("다음 턴:", nextTurn);
-      
+
       // 라운드 전환 체크
       if (currentRound === 1 && nextTurn === maxTurns[1]) {
         console.log("라운드 1 종료, 라운드 2 시작");
@@ -394,6 +446,36 @@ export default function DiscussionPage() {
       }
       return nextTurn;
     });
+  };
+
+  /* ---------- 음성 입력 처리 ---------- */
+  const handleSendFromVoice = async (audioBlob) => {
+    if (!isDiscussionActive) return;
+    // 1) STT
+    const userText = await callSpeechToText(audioBlob);
+    // 2) 유저 메시지 추가
+    const newMsg = { sender: "User", content: userText, stance: userStance };
+    setMessages((prev) => [...prev, newMsg]);
+    setAllRoundsMessages((prev) => {
+      const up = [...prev];
+      const startIdx = { 1: 0, 2: 2, 3: 8 };
+      up[startIdx[currentRound] + currentTurn] = newMsg;
+      return up;
+    });
+    setIsUserTurn(false);
+
+    // 3) 라운드3 처리
+    if (currentRound === 3) {
+      if (userStance === "찬성" && round3OpponentMessage) {
+        setMessages((p) => [...p, round3OpponentMessage]);
+        setAllRoundsMessages((p) => [...p, round3OpponentMessage]);
+      }
+      setShowVoteModal(true);
+      setIsDiscussionActive(false);
+    } else {
+      // 4) 다음 턴
+      advanceTurn({ 1: 2, 2: 6, 3: 2 });
+    }
   };
 
   /* ---------- 유저 전송 ---------- */
@@ -412,13 +494,13 @@ export default function DiscussionPage() {
 
     setUserInput("");
     setIsUserTurn(false);
-    
+
     // 라운드 3의 경우
     if (currentRound === 3) {
       // 찬성인 경우에만 상대방의 미리 생성된 메시지 표시
       if (userStance === "찬성" && round3OpponentMessage) {
-        setMessages(prev => [...prev, round3OpponentMessage]);
-        setAllRoundsMessages(prev => [...prev, round3OpponentMessage]);
+        setMessages((prev) => [...prev, round3OpponentMessage]);
+        setAllRoundsMessages((prev) => [...prev, round3OpponentMessage]);
       }
       // 투표 모달 표시 및 토론 종료
       setShowVoteModal(true);
@@ -441,23 +523,27 @@ export default function DiscussionPage() {
 
     // 라운드 2의 발언 순서 설정
     const round2Order = [
-      safeRoles.pro[1],     // 찬성2
-      safeRoles.con[1],     // 반대2
-      safeRoles.pro[0],     // 찬성1
-      safeRoles.con[0],     // 반대1
-      safeRoles.pro[1],     // 찬성2
-      safeRoles.con[1]      // 반대2
+      safeRoles.pro[1], // 찬성2
+      safeRoles.con[1], // 반대2
+      safeRoles.pro[0], // 찬성1
+      safeRoles.con[0], // 반대1
+      safeRoles.pro[1], // 찬성2
+      safeRoles.con[1], // 반대2
     ];
 
     // 라운드 3의 발언 순서 설정 (찬성1과 반대1만)
-    const round3Order = userStance === "찬성"
-      ? ["User", safeRoles.con[0]]  // 찬성1(유저) -> 반대1
-      : [pros[0], "User"];          // 찬성1 -> 반대1(유저)
+    const round3Order =
+      userStance === "찬성"
+        ? ["User", safeRoles.con[0]] // 찬성1(유저) -> 반대1
+        : [pros[0], "User"]; // 찬성1 -> 반대1(유저)
 
     // 현재 라운드에 따른 발언 순서 결정
-    const currentOrder = currentRound === 2 ? round2Order : 
-                        currentRound === 3 ? round3Order : 
-                        turnOrder;
+    const currentOrder =
+      currentRound === 2
+        ? round2Order
+        : currentRound === 3
+        ? round3Order
+        : turnOrder;
 
     // 현재 발언자가 유저인 경우 메시지 생성 건너뛰기
     const currentSpeaker = currentOrder[currentTurn];
@@ -469,7 +555,7 @@ export default function DiscussionPage() {
 
     const messages = [];
     let accumulatedMessages = [...allRoundsMessages]; // 현재까지의 모든 메시지 복사
-    
+
     // 라운드 2는 순차적으로 처리
     if (currentRound === 2) {
       console.log("\n=== 라운드 2 메시지 생성 시작 ===");
@@ -479,26 +565,34 @@ export default function DiscussionPage() {
       // 현재 턴의 발화자만 처리
       const name = currentOrder[currentTurn];
       const stance = safeRoles.pro.includes(name) ? "찬성" : "반대";
-      
+
       // 메시지 히스토리를 자연스러운 대화 형식으로 변환
       const messageHistory = accumulatedMessages
-        .filter(msg => msg && msg.content)
-        .map(msg => ({
+        .filter((msg) => msg && msg.content)
+        .map((msg) => ({
           role: "user",
-          content: msg.content
+          content: msg.content,
         }));
 
       // 직전 발언자와 메시지 확인
-      const previousSpeaker = currentTurn > 0 ? currentOrder[currentTurn - 1] : null;
-      const previousMessage = previousSpeaker ? 
-        accumulatedMessages[accumulatedMessages.length - 1] : null;
+      const previousSpeaker =
+        currentTurn > 0 ? currentOrder[currentTurn - 1] : null;
+      const previousMessage = previousSpeaker
+        ? accumulatedMessages[accumulatedMessages.length - 1]
+        : null;
 
       console.log("\n=== 발언자 정보 ===");
       console.log("현재 발언자:", name);
       console.log("현재 발언자 진영:", stance);
       console.log("직전 발언자:", previousSpeaker);
-      console.log("직전 발언자 메시지:", previousMessage ? previousMessage.content : "첫 발언");
-      console.log("직전 발언자 진영:", previousMessage ? previousMessage.stance : "없음");
+      console.log(
+        "직전 발언자 메시지:",
+        previousMessage ? previousMessage.content : "첫 발언"
+      );
+      console.log(
+        "직전 발언자 진영:",
+        previousMessage ? previousMessage.stance : "없음"
+      );
 
       console.log("\n=== 전체 메시지 히스토리 ===");
       accumulatedMessages.forEach((msg, idx) => {
@@ -527,11 +621,11 @@ export default function DiscussionPage() {
 
       const reply = await callOpenAI([
         { role: "system", content: prompt },
-        ...messageHistory
+        ...messageHistory,
       ]);
 
       if (!reply || !reply.content) {
-        console.error('Invalid reply from OpenAI');
+        console.error("Invalid reply from OpenAI");
         return null;
       }
 
@@ -552,31 +646,31 @@ export default function DiscussionPage() {
       }
 
       // 발언자 정보나 진영이 포함된 경우 제거
-      content = content.replace(/^[^(]+\([^)]+\):\s*/g, '');
+      content = content.replace(/^[^(]+\([^)]+\):\s*/g, "");
 
-      const message = { 
-        sender: name, 
-        content: content, 
+      const message = {
+        sender: name,
+        content: content,
         stance,
-        mbti: name
+        mbti: name,
       };
-    
+
       console.log("\n=== 생성된 메시지 ===");
       console.log("발언자:", message.sender);
       console.log("진영:", message.stance);
       console.log("내용:", message.content);
-        
+
       messages.push(message);
       return messages;
     } else if (currentRound === 3) {
       // 라운드 3는 전체 토론 내용을 참고
       const messageTexts = allRoundsMessages
-        .filter(msg => msg && msg.content)
-        .map(msg => `${msg.content}`);
+        .filter((msg) => msg && msg.content)
+        .map((msg) => `${msg.content}`);
 
       // 현재 턴의 발화자만 처리
       const name = currentOrder[currentTurn];
-      
+
       // 유저 차례인 경우 건너뛰기
       if (name === "User") {
         console.log("라운드 3 유저 차례 감지 - 메시지 생성 중단");
@@ -585,7 +679,7 @@ export default function DiscussionPage() {
       }
 
       const stance = safeRoles.pro.includes(name) ? "찬성" : "반대";
-      
+
       const prompt =
         `당신은 ${name} MBTI 토론자입니다. 주제: "${topic}".\n\n` +
         `지금까지의 전체 토론 내용입니다:\n${messageTexts.join("\n")}\n\n` +
@@ -597,29 +691,29 @@ export default function DiscussionPage() {
 
       const reply = await callOpenAI([
         { role: "system", content: prompt },
-        ...messageTexts.map(msg => ({
+        ...messageTexts.map((msg) => ({
           role: "user",
-          content: msg
-        }))
+          content: msg,
+        })),
       ]);
 
       if (!reply || !reply.content) {
-        console.error('Invalid reply from OpenAI');
+        console.error("Invalid reply from OpenAI");
         return null;
       }
 
-      messages.push({ 
-        sender: name, 
-        content: removeQuotes(reply.content), 
+      messages.push({
+        sender: name,
+        content: removeQuotes(reply.content),
         stance,
-        mbti: name
+        mbti: name,
       });
       return messages;
     } else {
       // 라운드 1은 첫 발언만
       for (const name of currentOrder) {
         const stance = safeRoles.pro.includes(name) ? "찬성" : "반대";
-        
+
         const prompt =
           `당신은 ${name} MBTI 토론자입니다. 주제: "${topic}". ` +
           `${stance} 입장에서 ${name} MBTI 성향을 말투에 반영하여 첫 발언해주세요. ` +
@@ -627,20 +721,18 @@ export default function DiscussionPage() {
           `MBTI를 직접 언급하지는 마세요. ` +
           `반드시 존댓말을 사용해주세요.`;
 
-        const reply = await callOpenAI([
-          { role: "system", content: prompt }
-        ]);
+        const reply = await callOpenAI([{ role: "system", content: prompt }]);
 
         if (!reply || !reply.content) {
-          console.error('Invalid reply from OpenAI');
+          console.error("Invalid reply from OpenAI");
           return null;
         }
 
-        messages.push({ 
-          sender: name, 
-          content: removeQuotes(reply.content), 
+        messages.push({
+          sender: name,
+          content: removeQuotes(reply.content),
           stance,
-          mbti: name
+          mbti: name,
         });
       }
       return messages;
@@ -665,7 +757,7 @@ export default function DiscussionPage() {
         ))}
       </ChatArea>
 
-      {isUserTurn && (
+      {/* {isUserTurn && (
         <InputArea>
           <TextInput
             value={userInput}
@@ -674,6 +766,14 @@ export default function DiscussionPage() {
           />
           <SendButton onClick={handleSend}>전송</SendButton>
         </InputArea>
+      )} */}
+      {isUserTurn && (
+        <RecorderArea>
+          <AudioRecorder
+            isRecordingAllowed={true}
+            onRecordingStop={handleSendFromVoice}
+          />
+        </RecorderArea>
       )}
 
       <Modal
@@ -698,7 +798,7 @@ export default function DiscussionPage() {
           <button
             onClick={() => {
               setShowVoteModal(false); // ✅ 투표 모달 닫고
-              setShowEndModal(true);  // ✅ 종료 모달 열기
+              setShowEndModal(true); // ✅ 종료 모달 열기
             }}
             style={{
               padding: "10px 28px",
@@ -708,7 +808,7 @@ export default function DiscussionPage() {
               borderRadius: 8,
               fontWeight: 600,
               fontSize: 20,
-              cursor: "pointer"
+              cursor: "pointer",
             }}
           >
             찬성
@@ -726,14 +826,13 @@ export default function DiscussionPage() {
               borderRadius: 8,
               fontWeight: 600,
               fontSize: 20,
-              cursor: "pointer"
+              cursor: "pointer",
             }}
           >
             반대
           </button>
         </div>
       </Modal>
-
 
       {/* ---------- 종료 모달 ---------- */}
       <Modal
@@ -751,8 +850,15 @@ export default function DiscussionPage() {
           overlay: { backgroundColor: "rgba(0,0,0,0.45)" },
         }}
       >
-        <h3 style={{ fontSize: 30, fontWeight: 800, color: "#000000", marginBottom: 10 }}>
-        🗳️ 투표 결과 🗳️
+        <h3
+          style={{
+            fontSize: 30,
+            fontWeight: 800,
+            color: "#000000",
+            marginBottom: 10,
+          }}
+        >
+          🗳️ 투표 결과 🗳️
         </h3>
         <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24 }}>
           찬성 : 3표, 반대 : 1표
@@ -771,7 +877,7 @@ export default function DiscussionPage() {
               borderRadius: 8,
               fontWeight: 600,
               fontSize: 20,
-              cursor: "pointer"
+              cursor: "pointer",
             }}
           >
             예
@@ -785,7 +891,7 @@ export default function DiscussionPage() {
               borderRadius: 8,
               fontWeight: 600,
               fontSize: 20,
-              cursor: "pointer"
+              cursor: "pointer",
             }}
           >
             아니오
@@ -795,7 +901,6 @@ export default function DiscussionPage() {
     </PageContainer>
   );
 }
-
 
 /* ---------- 말풍선 + 프로필 ---------- */
 const Message = ({ isUser, sender, content, stance, mbti }) => {
@@ -920,4 +1025,10 @@ const StanceTag = styled.div`
   text-align: right;
   color: ${({ $isPro }) => ($isPro ? "#4caf50" : "#f44336")};
   font-weight: 800;
+`;
+
+const RecorderArea = styled.div`
+  display: flex;
+  justify-content: center;
+  padding: 20px;
 `;
