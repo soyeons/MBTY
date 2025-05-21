@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import Modal from "react-modal";
+import AudioRecorder from "../components/AudioRecorder";
 
 /* ---------- MBTI 프로필 이미지 ---------- */
 import isfj from "../assets/ISFJ.png";
@@ -60,6 +61,21 @@ async function callOpenAI(messages) {
   });
   const data = await res.json();
   return data.choices[0].message;
+}
+
+/* ---------- Whisper STT 호출 ---------- */
+async function callSpeechToText(audioBlob) {
+  const form = new FormData();
+  form.append("file", audioBlob, "voice.webm");
+  form.append("model", "whisper-1");
+
+  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+    body: form,
+  });
+  const data = await res.json();
+  return data.text;
 }
 
 export default function DiscussionPage() {
@@ -433,6 +449,36 @@ export default function DiscussionPage() {
     });
   };
 
+  /* ---------- 음성 입력 처리 ---------- */
+  const handleSendFromVoice = async (audioBlob) => {
+    if (!isDiscussionActive) return;
+    // 1) STT
+    const userText = await callSpeechToText(audioBlob);
+    // 2) 유저 메시지 추가
+    const newMsg = { sender: "User", content: userText, stance: userStance };
+    setMessages((prev) => [...prev, newMsg]);
+    setAllRoundsMessages((prev) => {
+      const up = [...prev];
+      const startIdx = { 1: 0, 2: 2, 3: 8 };
+      up[startIdx[currentRound] + currentTurn] = newMsg;
+      return up;
+    });
+    setIsUserTurn(false);
+
+    // 3) 라운드3 처리
+    if (currentRound === 3) {
+      if (userStance === "찬성" && round3OpponentMessage) {
+        setMessages((p) => [...p, round3OpponentMessage]);
+        setAllRoundsMessages((p) => [...p, round3OpponentMessage]);
+      }
+      setShowVoteModal(true);
+      setIsDiscussionActive(false);
+    } else {
+      // 4) 다음 턴
+      advanceTurn({ 1: 2, 2: 6, 3: 2 });
+    }
+  };
+
   /* ---------- 유저 전송 ---------- */
   const handleSend = () => {
     if (!userInput.trim() || !isDiscussionActive) return;
@@ -712,7 +758,7 @@ export default function DiscussionPage() {
         ))}
       </ChatArea>
 
-      {isUserTurn && (
+      {/* {isUserTurn && (
         <InputArea>
           <TextInput
             value={userInput}
@@ -721,6 +767,14 @@ export default function DiscussionPage() {
           />
           <SendButton onClick={handleSend}>전송</SendButton>
         </InputArea>
+      )} */}
+      {isUserTurn && (
+        <RecorderArea>
+          <AudioRecorder
+            isRecordingAllowed={true}
+            onRecordingStop={handleSendFromVoice}
+          />
+        </RecorderArea>
       )}
 
       <Modal
@@ -972,4 +1026,10 @@ const StanceTag = styled.div`
   text-align: right;
   color: ${({ $isPro }) => ($isPro ? "#4caf50" : "#f44336")};
   font-weight: 800;
+`;
+
+const RecorderArea = styled.div`
+  display: flex;
+  justify-content: center;
+  padding: 20px;
 `;
