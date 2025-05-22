@@ -80,7 +80,7 @@ async function callPerplexity(messages) {
         model: "sonar",
         messages,
         stream: false,
-        max_tokens: 200,
+        max_tokens: 50,
       }),
     });
 
@@ -102,6 +102,118 @@ async function callPerplexity(messages) {
   }
 }
 
+/* ---------- 유틸 함수들 ---------- */
+const createDebatePrompt = (topic, speaker, stance, currentRound) => {
+  switch(currentRound) {
+    case 1:
+      return `"${topic}" 주제의 토론에 대해 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 매우 간결한 한마디로만 입론하시오.`;
+    case 2:
+      return `직전 주장에 대해 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 매우 간결한 한마디로만 반론하시오.`;
+    case 3:
+      return `지금까지의 대화 흐름을 보고 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 한마디로만 최후변론을 제공하시오.`;
+    default:
+      return "";
+  }
+};
+
+const addMessage = (setMessages, sender, content, stance, mbti) => {
+  setMessages(prev => [...prev, {
+    sender,
+    content,
+    stance,
+    mbti,
+  }]);
+};
+
+const handleAIMessage = async (topic, speaker, stance, setMessages, roles, currentRound) => {
+  try {
+    const prompt = createDebatePrompt(topic, speaker, stance, currentRound);
+    const aiMessage = await callPerplexity([{
+      role: "user",
+      content: prompt
+    }]);
+    
+    addMessage(
+      setMessages,
+      speaker,
+      aiMessage.content,
+      stance,
+      speaker
+    );
+    return true;
+  } catch (error) {
+    console.error("Error calling Perplexity:", error);
+    addMessage(
+      setMessages,
+      speaker,
+      "입론합니다.",
+      stance,
+      speaker
+    );
+    return false;
+  }
+};
+
+/* ---------- 라운드별 핸들러 ---------- */
+const handleRound1 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound) => {
+  if (currentTurn === 0) {
+    if (roles.pro.includes("User")) {
+      setIsUserTurn(true);
+    } else {
+      await handleAIMessage(topic, roles.pro[0], "찬성", setMessages, roles, 1);
+      setCurrentTurn(prev => prev + 1);
+    }
+  } else {
+    if (roles.pro.includes("User")) {
+      await handleAIMessage(topic, roles.con[0], "반대", setMessages, roles, 1);
+      setCurrentRound(prev => prev + 1);
+      setCurrentTurn(0);
+    } else {
+      setIsUserTurn(true);
+    }
+  }
+};
+
+const handleRound2 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound) => {
+  if (currentTurn === 6) {
+    setCurrentRound(3);
+    setCurrentTurn(0);
+    return;
+  }
+
+  const round2Order = [
+    roles.pro[1], roles.con[1], roles.pro[0],
+    roles.con[0], roles.pro[1], roles.con[1]
+  ];
+
+  const currentSpeaker = round2Order[currentTurn];
+  if (currentSpeaker === "User") {
+    setIsUserTurn(true);
+    return;
+  }
+
+  const stance = roles.pro.includes(currentSpeaker) ? "찬성" : "반대";
+  await handleAIMessage(topic, currentSpeaker, stance, setMessages, roles, 2);
+  setCurrentTurn(prev => prev + 1);
+};
+
+const handleRound3 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setShowVoteModal) => {
+  if (roles.pro.includes("User")) {
+    if (currentTurn === 0) {
+      setIsUserTurn(true);
+    } else {
+      await handleAIMessage(topic, roles.con[0], "반대", setMessages, roles, 3);
+      setShowVoteModal(true);
+    }
+  } else {
+    if (currentTurn === 0) {
+      await handleAIMessage(topic, roles.pro[0], "찬성", setMessages, roles, 3);
+      setCurrentTurn(prev => prev + 1);
+    } else {
+      setIsUserTurn(true);
+    }
+  }
+};
 
 export default function DiscussionPage() {
   const location = useLocation();
@@ -117,7 +229,7 @@ export default function DiscussionPage() {
   const [isUserTurn, setIsUserTurn] = useState(false);
   const [showEndModal, setShowEndModal] = useState(false);
   const [showVoteModal, setShowVoteModal] = useState(false);
-  const [isDiscussionActive, setIsDiscussionActive] = useState(true);
+  const [discussionHistory, setDiscussionHistory] = useState([]);
   /* ---------- 유틸 ---------- */
   useEffect(() => {
     if (!topic || !personas) return;
@@ -127,191 +239,15 @@ export default function DiscussionPage() {
     console.log(`전체 토론 참가자:`, roles);
 
     const handleRound = async () => {
-      switch(currentRound){
+      switch(currentRound) {
         case 1:
-          if(currentTurn === 0) {
-            // check user stance
-            if (roles.pro.includes("User")) {
-              // 유저 찬성 => 선 발언
-              setIsUserTurn(true);
-            }
-            else {
-              // 유저 반대 => LLM이 선발언
-              try {
-                const aiMessage = await callOpenAI([
-                  {
-                    role: "system",
-                    content: '라운드 1 프롬프트',
-                  }
-                ]);
-                setMessages(prev => [...prev, {
-                  sender: roles.pro[0],
-                  content: aiMessage.content,
-                  stance: "찬성",
-                  mbti: roles.pro[0],
-                }]);
-              } catch (error) {
-                console.error("Error calling OpenAI:", error);
-                setMessages(prev => [...prev, {
-                  sender: roles.pro[0],
-                  content: "입론합니다. 저는 찬성합니다.",
-                  stance: "찬성",
-                  mbti: roles.pro[0],
-                }]);
-              }
-              setCurrentTurn(prev => prev + 1);
-              console.log("현재 턴", currentTurn);
-            }
-          }
-          else {
-            if (roles.pro.includes("User")) {
-              // LLM 발언
-              // 유저 찬성 => LLM이 후발언
-              try {
-                const aiMessage = await callOpenAI([
-                  {
-                    role: "system",
-                    content: `You are a debate participant with MBTI type ${roles.con[0]}. You are arguing against the topic: "${topic}". Keep your response concise and logical, within two sentences.`
-                  }
-                ]);
-                setMessages(prev => [...prev, {
-                  sender: roles.con[0],
-                  content: aiMessage.content,
-                  stance: "반대",
-                  mbti: roles.con[0],
-                }]);
-              } catch (error) {
-                console.error("Error calling OpenAI:", error);
-                setMessages(prev => [...prev, {
-                  sender: roles.con[0],
-                  content: "입론합니다. 저는 반대합니다.",
-                  stance: "반대",
-                  mbti: roles.con[0],
-                }]);
-              }
-              setCurrentRound(prev => prev + 1);
-              setCurrentTurn(0);
-            }
-            else {
-              setIsUserTurn(true);
-            }
-          }
+          await handleRound1(topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound);
           break;
         case 2:
-          console.log("발화 횟수: ", messages.length);
-
-          // 라운드 2 종료 체크
-          if (currentTurn === 6) {
-            setCurrentRound(3);
-            setCurrentTurn(0);
-            return;
-          }
-
-          // 라운드 2의 발화 순서 정의
-          const round2Order = [
-            roles.pro[1],     // 찬성2
-            roles.con[1],     // 반대2
-            roles.pro[0],     // 찬성1
-            roles.con[0],     // 반대1
-            roles.pro[1],     // 찬성2
-            roles.con[1]      // 반대2
-          ];
-
-          // 현재 발화자 결정
-          const currentSpeaker = round2Order[currentTurn];
-
-          // 유저 차례인 경우
-          if (currentSpeaker === "User") {
-            setIsUserTurn(true);
-            return; // 유저 입력을 기다림
-          }
-
-          // AI 발화
-          try {
-            const aiMessage = await callOpenAI([
-              {
-                role: "system",
-                content: '라운드 2 프롬프트'
-              }
-            ]);
-            setMessages(prev => [...prev, {
-              sender: currentSpeaker,
-              content: aiMessage.content,
-              stance: roles.pro.includes(currentSpeaker) ? "찬성" : "반대",
-              mbti: currentSpeaker
-            }]);
-          } catch (error) {
-            console.error("Error calling OpenAI:", error);
-            setMessages(prev => [...prev, {
-              sender: currentSpeaker,
-              content: "반론중입니다.",
-              stance: roles.pro.includes(currentSpeaker) ? "찬성" : "반대",
-              mbti: currentSpeaker
-            }]);
-          }
-          setCurrentTurn(prev => prev + 1);
+          await handleRound2(topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound);
           break;
         case 3:
-          if (roles.pro.includes("User")) {
-            if(currentTurn === 0) {
-              setIsUserTurn(true);
-            }
-            else{
-              try {
-                const aiMessage = await callOpenAI([
-                  {
-                    role: "system",
-                    content: '라운드 3 프롬프트'
-                  }
-                ]);
-                setMessages(prev => [...prev, {
-                  sender: roles.con[0],
-                  content: aiMessage.content,
-                  stance: "반대",
-                  mbti: roles.con[0],
-                }]);
-              } catch (error) {
-                console.error("Error calling OpenAI:", error);
-                setMessages(prev => [...prev, {
-                  sender: roles.con[0],
-                  content: "최종 변론입니다.",
-                  stance: "반대",
-                  mbti: roles.con[0],
-                }]);
-              }
-              setShowVoteModal(true);
-            }
-          }
-          else{
-            if(currentTurn === 0) {
-              try {
-                const aiMessage = await callOpenAI([
-                  {
-                    role: "system",
-                    content: '라운드 3 프롬프트'
-                  }
-                ]);
-                setMessages(prev => [...prev, {
-                  sender: roles.pro[0],
-                  content: aiMessage.content,
-                  stance: "찬성",
-                  mbti: roles.pro[0],
-                }]);
-              } catch (error) {
-                console.error("Error calling OpenAI:", error);
-                setMessages(prev => [...prev, {
-                  sender: roles.pro[0],
-                  content: "최종 반론입니다.",
-                  stance: "찬성",
-                  mbti: roles.pro[0],
-                }]);
-              }
-              setCurrentTurn(prev => prev + 1);
-            }
-            else{
-              setIsUserTurn(true);
-            }
-          }
+          await handleRound3(topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setShowVoteModal);
           break;
         default:
           break;
