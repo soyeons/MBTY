@@ -48,7 +48,7 @@ const allPersonasMap = {
 const OPENAI_API_KEY = process.env.REACT_APP_OPENAI_API_KEY;
 
 /* ---------- 모델 할당 ---------- */
-const AVAILABLE_MODELS = ["sonar", "sonar-pro", "sonar-pro"];
+const AVAILABLE_MODELS = ["sonar", "sonar-pro", "llama-3.3-70b-versatile"];
 
 const assignModelsToSpeakers = (roles) => {
   const speakerModels = {};
@@ -123,6 +123,43 @@ async function callPerplexity(messages, model) {
   }
 }
 
+/* ---------- Groq 호출 ---------- */
+async function callGroq(messages, model) {
+  try {
+    console.log("Messages being sent to Groq:", messages);
+    
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.REACT_APP_GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: model,
+        messages,
+        temperature: 0.7,
+        max_tokens: 100,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Groq API error: ${errorData.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0].message;
+  } catch (error) {
+    console.error("Error calling Groq:", {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause
+    });
+    throw error;
+  }
+}
+
 /* ---------- 유틸 함수들 ---------- */
 const createDebatePrompt = (topic, speaker, stance, currentRound) => {
   switch(currentRound) {
@@ -179,7 +216,12 @@ const handleAIMessage = async (topic, speaker, stance, setMessages, roles, curre
     }
 
     console.log("Final message history:", messageHistory);
-    const aiMessage = await callPerplexity(messageHistory, speakerModels[speaker]);
+    
+    // Choose API based on model
+    const model = speakerModels[speaker];
+    const aiMessage = model.startsWith("llama") 
+      ? await callGroq(messageHistory, model)
+      : await callPerplexity(messageHistory, model);
     
     addMessage(
       setMessages,
@@ -190,7 +232,7 @@ const handleAIMessage = async (topic, speaker, stance, setMessages, roles, curre
     );
     return true;
   } catch (error) {
-    console.error("Error calling Perplexity:", error);
+    console.error("Error calling AI:", error);
     addMessage(
       setMessages,
       speaker,
@@ -246,12 +288,17 @@ const handleRound2 = async (topic, roles, currentTurn, setMessages, setIsUserTur
 };
 
 const handleRound3 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setShowVoteModal, speakerModels, messages) => {
+  if (currentTurn >= 2) {
+    setShowVoteModal(true);
+    return;
+  }
+
   if (roles.pro.includes("User")) {
     if (currentTurn === 0) {
       setIsUserTurn(true);
     } else {
       await handleAIMessage(topic, roles.con[0], "반대", setMessages, roles, 3, speakerModels, messages);
-      setShowVoteModal(true);
+      setCurrentTurn(prev => prev + 1);
     }
   } else {
     if (currentTurn === 0) {
@@ -311,12 +358,10 @@ export default function DiscussionPage() {
     };
 
     handleRound();
-  }, [topic, personas, roles, currentRound, currentTurn, speakerModels, messages]);
+  }, [topic, personas, roles, currentRound, currentTurn, speakerModels]);
 
   useEffect(() => {
-
     console.log("누적 메세지 ", messages);
-    
   }, [messages]);
 
   const roundLabels = {
@@ -367,23 +412,12 @@ export default function DiscussionPage() {
         setMessages(prev => [...prev, {
           sender: "User",
           content: userInput,
-          stance: currentTurn === 0 ? "찬성" : "반대",
+          stance: roles.pro.includes("User") ? "찬성" : "반대",
           mbti: "User",
         }]);
-
         setUserInput("");
         setIsUserTurn(false);
-
-        if(currentTurn === 0){
-          // user 찬성
-          setCurrentTurn(prev => prev + 1);
-        }
-        else{
-          // user 반대
-          setShowVoteModal(true);
-
-        }
-
+        setCurrentTurn(prev => prev + 1);
         break;
       default:
         break;
