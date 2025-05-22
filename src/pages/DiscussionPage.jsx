@@ -47,6 +47,27 @@ const allPersonasMap = {
 
 const OPENAI_API_KEY = process.env.REACT_APP_OPENAI_API_KEY;
 
+/* ---------- 모델 할당 ---------- */
+const AVAILABLE_MODELS = ["sonar", "sonar-pro", "r1-1776"];
+
+const assignModelsToSpeakers = (roles) => {
+  const speakerModels = {};
+  const availableModels = [...AVAILABLE_MODELS];
+  
+  // User를 제외한 모든 스피커에게 모델 할당
+  [...roles.pro, ...roles.con].forEach(speaker => {
+    if (speaker !== "User") {
+      const randomIndex = Math.floor(Math.random() * availableModels.length);
+      speakerModels[speaker] = availableModels[randomIndex];
+      availableModels.splice(randomIndex, 1);
+    }
+  });
+
+  console.log("Assigned models to speakers:", speakerModels);
+  
+  return speakerModels;
+};
+
 /* ---------- OpenAI 호출 ---------- */
 async function callOpenAI(messages) {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -66,7 +87,7 @@ async function callOpenAI(messages) {
 }
 
 /* ---------- Perplexity 호출 ---------- */
-async function callPerplexity(messages) {
+async function callPerplexity(messages, model) {
   try {
     console.log("Messages being sent:", messages); // Debug log
     
@@ -77,7 +98,7 @@ async function callPerplexity(messages) {
         Authorization: `Bearer ${process.env.REACT_APP_PERPLEXITY_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "sonar",
+        model: model,
         messages,
         stream: false,
         max_tokens: 50,
@@ -106,11 +127,11 @@ async function callPerplexity(messages) {
 const createDebatePrompt = (topic, speaker, stance, currentRound) => {
   switch(currentRound) {
     case 1:
-      return `"${topic}" 주제의 토론에 대해 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 매우 간결한 한마디로만 입론하시오.`;
+      return `"${topic}" 주제의 토론에 대해 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 매우 간결한 한마디로 시작 발언하시오.`;
     case 2:
-      return `직전 주장에 대해 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 매우 간결한 한마디로만 반론하시오.`;
+      return `직전 주장에 대해 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 매우 간결한 한마디로 반론하여 주시오.`;
     case 3:
-      return `지금까지의 대화 흐름을 보고 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 한마디로만 최후변론을 제공하시오.`;
+      return `지금까지의 대화 흐름을 보고 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 한마디로 최후변론을 해주시오.`;
     default:
       return "";
   }
@@ -125,13 +146,13 @@ const addMessage = (setMessages, sender, content, stance, mbti) => {
   }]);
 };
 
-const handleAIMessage = async (topic, speaker, stance, setMessages, roles, currentRound) => {
+const handleAIMessage = async (topic, speaker, stance, setMessages, roles, currentRound, speakerModels) => {
   try {
     const prompt = createDebatePrompt(topic, speaker, stance, currentRound);
     const aiMessage = await callPerplexity([{
       role: "user",
       content: prompt
-    }]);
+    }], speakerModels[speaker]);
     
     addMessage(
       setMessages,
@@ -155,17 +176,17 @@ const handleAIMessage = async (topic, speaker, stance, setMessages, roles, curre
 };
 
 /* ---------- 라운드별 핸들러 ---------- */
-const handleRound1 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound) => {
+const handleRound1 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound, speakerModels) => {
   if (currentTurn === 0) {
     if (roles.pro.includes("User")) {
       setIsUserTurn(true);
     } else {
-      await handleAIMessage(topic, roles.pro[0], "찬성", setMessages, roles, 1);
+      await handleAIMessage(topic, roles.pro[0], "찬성", setMessages, roles, 1, speakerModels);
       setCurrentTurn(prev => prev + 1);
     }
   } else {
     if (roles.pro.includes("User")) {
-      await handleAIMessage(topic, roles.con[0], "반대", setMessages, roles, 1);
+      await handleAIMessage(topic, roles.con[0], "반대", setMessages, roles, 1, speakerModels);
       setCurrentRound(prev => prev + 1);
       setCurrentTurn(0);
     } else {
@@ -174,7 +195,7 @@ const handleRound1 = async (topic, roles, currentTurn, setMessages, setIsUserTur
   }
 };
 
-const handleRound2 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound) => {
+const handleRound2 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound, speakerModels) => {
   if (currentTurn === 6) {
     setCurrentRound(3);
     setCurrentTurn(0);
@@ -193,21 +214,21 @@ const handleRound2 = async (topic, roles, currentTurn, setMessages, setIsUserTur
   }
 
   const stance = roles.pro.includes(currentSpeaker) ? "찬성" : "반대";
-  await handleAIMessage(topic, currentSpeaker, stance, setMessages, roles, 2);
+  await handleAIMessage(topic, currentSpeaker, stance, setMessages, roles, 2, speakerModels);
   setCurrentTurn(prev => prev + 1);
 };
 
-const handleRound3 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setShowVoteModal) => {
+const handleRound3 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setShowVoteModal, speakerModels) => {
   if (roles.pro.includes("User")) {
     if (currentTurn === 0) {
       setIsUserTurn(true);
     } else {
-      await handleAIMessage(topic, roles.con[0], "반대", setMessages, roles, 3);
+      await handleAIMessage(topic, roles.con[0], "반대", setMessages, roles, 3, speakerModels);
       setShowVoteModal(true);
     }
   } else {
     if (currentTurn === 0) {
-      await handleAIMessage(topic, roles.pro[0], "찬성", setMessages, roles, 3);
+      await handleAIMessage(topic, roles.pro[0], "찬성", setMessages, roles, 3, speakerModels);
       setCurrentTurn(prev => prev + 1);
     } else {
       setIsUserTurn(true);
@@ -230,9 +251,17 @@ export default function DiscussionPage() {
   const [showEndModal, setShowEndModal] = useState(false);
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [discussionHistory, setDiscussionHistory] = useState([]);
+  const [speakerModels, setSpeakerModels] = useState({});
   /* ---------- 유틸 ---------- */
   useEffect(() => {
     if (!topic || !personas) return;
+
+    // 모델 할당
+    if (Object.keys(speakerModels).length === 0) {
+      const assignedModels = assignModelsToSpeakers(roles);
+      setSpeakerModels(assignedModels);
+      return; // 모델 할당 후 바로 종료, 다음 렌더에서 진행
+    }
 
     console.log(`currRound: ${currentRound}, currTurn: ${currentTurn}`);
     console.log(`토론 주제: ${topic}`);
@@ -241,13 +270,13 @@ export default function DiscussionPage() {
     const handleRound = async () => {
       switch(currentRound) {
         case 1:
-          await handleRound1(topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound);
+          await handleRound1(topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound, speakerModels);
           break;
         case 2:
-          await handleRound2(topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound);
+          await handleRound2(topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound, speakerModels);
           break;
         case 3:
-          await handleRound3(topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setShowVoteModal);
+          await handleRound3(topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setShowVoteModal, speakerModels);
           break;
         default:
           break;
@@ -255,7 +284,7 @@ export default function DiscussionPage() {
     };
 
     handleRound();
-  }, [topic, personas, roles, currentRound, currentTurn]);
+  }, [topic, personas, roles, currentRound, currentTurn, speakerModels]);
 
   useEffect(() => {
 
