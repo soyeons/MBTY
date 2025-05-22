@@ -48,7 +48,7 @@ const allPersonasMap = {
 const OPENAI_API_KEY = process.env.REACT_APP_OPENAI_API_KEY;
 
 /* ---------- 모델 할당 ---------- */
-const AVAILABLE_MODELS = ["sonar", "sonar-pro", "r1-1776"];
+const AVAILABLE_MODELS = ["sonar", "sonar-pro", "sonar-pro"];
 
 const assignModelsToSpeakers = (roles) => {
   const speakerModels = {};
@@ -129,7 +129,7 @@ const createDebatePrompt = (topic, speaker, stance, currentRound) => {
     case 1:
       return `"${topic}" 주제의 토론에 대해 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 매우 간결한 한마디로 시작 발언하시오.`;
     case 2:
-      return `직전 주장에 대해 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 매우 간결한 한마디로 반론하여 주시오.`;
+      return `직전 주장에 대해서 ${speaker} 성향을 말투에 반영하여 매우 간결한 한마디로 확실히 반박하시오.`;
     case 3:
       return `지금까지의 대화 흐름을 보고 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 한마디로 최후변론을 해주시오.`;
     default:
@@ -146,13 +146,40 @@ const addMessage = (setMessages, sender, content, stance, mbti) => {
   }]);
 };
 
-const handleAIMessage = async (topic, speaker, stance, setMessages, roles, currentRound, speakerModels) => {
+const handleAIMessage = async (topic, speaker, stance, setMessages, roles, currentRound, speakerModels, messages) => {
   try {
     const prompt = createDebatePrompt(topic, speaker, stance, currentRound);
-    const aiMessage = await callPerplexity([{
+    
+    // Convert messages to alternating user/assistant format
+    const messageHistory = [];
+    
+    // Convert system message to user message
+    messageHistory.push({
       role: "user",
-      content: prompt
-    }], speakerModels[speaker]);
+      content: `당신은 ${speaker} MBTI 토론자입니다. 주제: "${topic}". ${stance} 입장에서 대화해주세요.`
+    });
+
+    if (currentRound === 1) {
+      // Round 1: Just send the prompt
+      messageHistory.push({ role: "assistant", content: "네, 이해했습니다." });
+      messageHistory.push({ role: "user", content: prompt });
+    } else {
+      // Round 2, 3: Send last message and prompt
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage) {
+        messageHistory.push({
+          role: "assistant",
+          content: lastMessage.content
+        });
+        messageHistory.push({
+          role: "user",
+          content: prompt
+        });
+      }
+    }
+
+    console.log("Final message history:", messageHistory);
+    const aiMessage = await callPerplexity(messageHistory, speakerModels[speaker]);
     
     addMessage(
       setMessages,
@@ -176,17 +203,17 @@ const handleAIMessage = async (topic, speaker, stance, setMessages, roles, curre
 };
 
 /* ---------- 라운드별 핸들러 ---------- */
-const handleRound1 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound, speakerModels) => {
+const handleRound1 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound, speakerModels, messages) => {
   if (currentTurn === 0) {
     if (roles.pro.includes("User")) {
       setIsUserTurn(true);
     } else {
-      await handleAIMessage(topic, roles.pro[0], "찬성", setMessages, roles, 1, speakerModels);
+      await handleAIMessage(topic, roles.pro[0], "찬성", setMessages, roles, 1, speakerModels, messages);
       setCurrentTurn(prev => prev + 1);
     }
   } else {
     if (roles.pro.includes("User")) {
-      await handleAIMessage(topic, roles.con[0], "반대", setMessages, roles, 1, speakerModels);
+      await handleAIMessage(topic, roles.con[0], "반대", setMessages, roles, 1, speakerModels, messages);
       setCurrentRound(prev => prev + 1);
       setCurrentTurn(0);
     } else {
@@ -195,7 +222,7 @@ const handleRound1 = async (topic, roles, currentTurn, setMessages, setIsUserTur
   }
 };
 
-const handleRound2 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound, speakerModels) => {
+const handleRound2 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound, speakerModels, messages) => {
   if (currentTurn === 6) {
     setCurrentRound(3);
     setCurrentTurn(0);
@@ -214,21 +241,21 @@ const handleRound2 = async (topic, roles, currentTurn, setMessages, setIsUserTur
   }
 
   const stance = roles.pro.includes(currentSpeaker) ? "찬성" : "반대";
-  await handleAIMessage(topic, currentSpeaker, stance, setMessages, roles, 2, speakerModels);
+  await handleAIMessage(topic, currentSpeaker, stance, setMessages, roles, 2, speakerModels, messages);
   setCurrentTurn(prev => prev + 1);
 };
 
-const handleRound3 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setShowVoteModal, speakerModels) => {
+const handleRound3 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setShowVoteModal, speakerModels, messages) => {
   if (roles.pro.includes("User")) {
     if (currentTurn === 0) {
       setIsUserTurn(true);
     } else {
-      await handleAIMessage(topic, roles.con[0], "반대", setMessages, roles, 3, speakerModels);
+      await handleAIMessage(topic, roles.con[0], "반대", setMessages, roles, 3, speakerModels, messages);
       setShowVoteModal(true);
     }
   } else {
     if (currentTurn === 0) {
-      await handleAIMessage(topic, roles.pro[0], "찬성", setMessages, roles, 3, speakerModels);
+      await handleAIMessage(topic, roles.pro[0], "찬성", setMessages, roles, 3, speakerModels, messages);
       setCurrentTurn(prev => prev + 1);
     } else {
       setIsUserTurn(true);
@@ -270,13 +297,13 @@ export default function DiscussionPage() {
     const handleRound = async () => {
       switch(currentRound) {
         case 1:
-          await handleRound1(topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound, speakerModels);
+          await handleRound1(topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound, speakerModels, messages);
           break;
         case 2:
-          await handleRound2(topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound, speakerModels);
+          await handleRound2(topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound, speakerModels, messages);
           break;
         case 3:
-          await handleRound3(topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setShowVoteModal, speakerModels);
+          await handleRound3(topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setShowVoteModal, speakerModels, messages);
           break;
         default:
           break;
@@ -284,7 +311,7 @@ export default function DiscussionPage() {
     };
 
     handleRound();
-  }, [topic, personas, roles, currentRound, currentTurn, speakerModels]);
+  }, [topic, personas, roles, currentRound, currentTurn, speakerModels, messages]);
 
   useEffect(() => {
 
