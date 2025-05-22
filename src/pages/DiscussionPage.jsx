@@ -3,6 +3,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import Modal from "react-modal";
 
+import { perplexity } from '@ai-sdk/perplexity';
+import { streamText } from 'ai';
+
 /* ---------- MBTI 프로필 이미지 ---------- */
 import isfj from "../assets/ISFJ.png";
 import entj from "../assets/ENTJ.png";
@@ -61,6 +64,44 @@ async function callOpenAI(messages) {
   const data = await res.json();
   return data.choices[0].message;
 }
+
+/* ---------- Perplexity 호출 ---------- */
+async function callPerplexity(messages) {
+  try {
+    console.log("Messages being sent:", messages); // Debug log
+    
+    const response = await fetch("https://api.perplexity.ai/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.REACT_APP_PERPLEXITY_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "sonar",
+        messages,
+        stream: false,
+        max_tokens: 200,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Perplexity API error: ${errorData.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0].message;
+  } catch (error) {
+    console.error("Error calling Perplexity:", {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause
+    });
+    throw error;
+  }
+}
+
 
 export default function DiscussionPage() {
   const location = useLocation();
@@ -233,7 +274,7 @@ export default function DiscussionPage() {
                 console.error("Error calling OpenAI:", error);
                 setMessages(prev => [...prev, {
                   sender: roles.con[0],
-                  content: "최종 반론입니다.",
+                  content: "최종 변론입니다.",
                   stance: "반대",
                   mbti: roles.con[0],
                 }]);
@@ -281,8 +322,10 @@ export default function DiscussionPage() {
   }, [topic, personas, roles, currentRound, currentTurn]);
 
   useEffect(() => {
+
+    console.log("누적 메세지 ", messages);
     
-  }, []);
+  }, [messages]);
 
   const roundLabels = {
     1: "🗣️ 입론 : 나의 첫 주장을 펼쳐요",
