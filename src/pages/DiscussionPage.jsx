@@ -418,7 +418,7 @@ const handleRound3 = async (topic, roles, currentTurn, setMessages, setIsUserTur
         {
           role: "system",
           content: `당신은 토론의 사회자입니다. 전체 토론 내용을 바탕으로 토론의 핵심 논점과 결론을 간단히 요약해주세요. 
-          형식은 다음과 같이 해주세요: "토론을 통해 [핵심 논점]에 대해 [결론]이라는 의견이 모아진 것 같습니다."`
+          형식은 다음과 같이 해주세요: "토론을 통해 어떠한 의견과 관점이 지배적으로 모아진 듯 보입니다."`
         },
         {
           role: "user",
@@ -620,6 +620,8 @@ export default function DiscussionPage() {
               mbti: "moderator",
             }]);
           setCurrentTurn(prev => prev + 1);
+          setUserInput("");
+          setIsUserTurn(false);
           });
           return prevMessages;
         });
