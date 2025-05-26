@@ -1680,7 +1680,7 @@ export default function DiscussionPage() {
         });
       }
 
-      if(currentRound === 2) {
+      if(currentRound === 2 && roles.pro.includes("User")) {
         setMessages((prevMessages) => {
           const lastContent = prevMessages[prevMessages.length - 1].content;
           callOpenAI([
@@ -1700,6 +1700,37 @@ export default function DiscussionPage() {
                 content:
                   `${summary.content}` +
                   ` 상대측 ${roles.con[0]} 의견 있으실까요?`,
+                stance: "중립",
+                mbti: "moderator",
+              },
+            ]);
+            // setCurrentRound((prev) => prev + 1);
+            setIsUserTurn(false);
+            setCurrentTurn((prev) => prev + 1);
+          });
+          return prevMessages;
+        });
+      }
+      else if (currentRound === 2 && roles.con.includes("User")) {
+        setMessages((prevMessages) => {
+          const lastContent = prevMessages[prevMessages.length - 1].content;
+          callOpenAI([
+            {
+              role: "system",
+              content: `참가자의 주장을 한마디로 명쾌하게 요약 바람. 형식은 다음과 같이 해줘: "네, 삶의 질이 개선되어 업무시간에 더욱 집중력이 올라갈 것이라는 의견 잘 들었습니다."`,
+            },
+            {
+              role: "user",
+              content: `참가자의 주장을 한마디로 요약해서 소개해주세요. 참가자의 주장: ${lastContent}.`,
+            },
+          ]).then((summary) => {
+            setMessages((prev) => [
+              ...prev,
+              {
+                sender: "moderator",
+                content:
+                  `${summary.content}` +
+                  ` 상대측 ${roles.pro[0]} 의견 있으실까요?`,
                 stance: "중립",
                 mbti: "moderator",
               },
