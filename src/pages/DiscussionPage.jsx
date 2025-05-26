@@ -615,7 +615,7 @@ export default function DiscussionPage() {
           ]).then(summary => {
             setMessages(prev => [...prev, {
               sender: "moderator",
-              content: `${summary.content} 해당 의견에 대한 의견 있으실까요?`,
+              content: `${summary.content} 해당 의견에 대한 반박 부탁드립니다.`,
               stance: "중립",
               mbti: "moderator",
             }]);
