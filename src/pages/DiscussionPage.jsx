@@ -859,6 +859,38 @@ const allPersonasMap = {
   moderator: moderator,
 };
 
+/* ---------- TTS 설정 ---------- */
+// 목소리 매핑: male -> 'fable', female -> 'shimmer'
+// Fable: warm, engaging male voice; Shimmer: soft, gentle female voice ([ttsopen.ai](https://ttsopen.ai/?utm_source=chatgpt.com), [datacamp.com](https://www.datacamp.com/tutorial/how-to-use-the-openai-text-to-speech-api))
+const TTS_VOICE_MAPPING = {
+  male: "onyx",
+  female: "nova",
+};
+
+const TTS_PLAYBACK_RATE = 1.3; // 재생 속도 조절 (1.0 기본, 높일수록 빠름)
+
+// 성별 매핑
+const personaGenders = {
+  ISFJ: "male",
+  ENTJ: "female",
+  ISTP: "male",
+  ESTJ: "male",
+  ENFP: "female",
+  INFJ: "female",
+  ESTP: "male",
+  ENFJ: "female",
+  ISTJ: "male",
+  INTJ: "female",
+  INTP: "female",
+  INFP: "female",
+  ESFP: "male",
+  ESFJ: "female",
+  ISFP: "male",
+  ENTP: "female",
+  User: "user",
+  moderator: "male",
+};
+
 const OPENAI_API_KEY = process.env.REACT_APP_OPENAI_API_KEY;
 
 /* ---------- 모델 할당 ---------- */
@@ -898,6 +930,22 @@ async function callOpenAI(messages) {
   });
   const data = await res.json();
   return data.choices[0].message;
+}
+
+/* ---------- TTS API 호출 함수 ---------- */
+async function textToSpeech(text, voice) {
+  const response = await fetch("https://api.openai.com/v1/audio/speech", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({ model: "tts-1", voice, input: text }),
+  });
+  if (!response.ok) throw new Error("TTS request failed");
+  const audioBuffer = await response.arrayBuffer();
+  const blob = new Blob([audioBuffer], { type: "audio/mpeg" });
+  return URL.createObjectURL(blob);
 }
 
 /* ---------- STT ---------- */
@@ -1409,6 +1457,54 @@ export default function DiscussionPage() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
+  /* ---------- TTS 큐 및 재생 상태 ---------- */
+  const [speechQueue, setSpeechQueue] = useState([]);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const [speakingMessageId, setSpeakingMessageId] = useState(null);
+
+  /* ---------- 새 메시지 추가 시 TTS 큐에 등록 ---------- */
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (last.sender !== "User") {
+      const gender = personaGenders[last.mbti || last.sender];
+      const voice = TTS_VOICE_MAPPING[gender] || TTS_VOICE_MAPPING.female;
+      // include the message index so we know which bubble to highlight
+      setSpeechQueue((q) => [
+        ...q,
+        { text: last.content, voice, id: messages.length - 1 },
+      ]);
+      // setSpeechQueue((q) => [...q, { text: last.content, voice }]);
+    }
+  }, [messages]);
+
+  /* ---------- 큐에서 순차 재생 ---------- */
+  useEffect(() => {
+    if (isSpeaking || speechQueue.length === 0) return;
+    // const { text, voice } = speechQueue[0];
+    const { text, voice, id } = speechQueue[0];
+    setIsSpeaking(true);
+    setSpeakingMessageId(id);
+    textToSpeech(text, voice)
+      .then((url) => {
+        const audio = new Audio(url);
+        audio.playbackRate = TTS_PLAYBACK_RATE;
+        audio.onended = () => {
+          setIsSpeaking(false);
+          setSpeechQueue((q) => q.slice(1));
+          setSpeakingMessageId(null);
+        };
+        audio.play();
+      })
+      .catch((err) => {
+        console.error("TTS playback error", err);
+        setIsSpeaking(false);
+        setSpeechQueue((q) => q.slice(1));
+        setSpeakingMessageId(null);
+      });
+  }, [speechQueue, isSpeaking]);
+
   /* ---------- 유틸 ---------- */
   useEffect(() => {
     if (!topic || !personas) return;
@@ -1679,8 +1775,17 @@ export default function DiscussionPage() {
       <RoundIndicator>{roundLabels[currentRound]}</RoundIndicator>
 
       <ChatArea>
-        {messages.map((m, i) => (
+        {/* {messages.map((m, i) => (
           <Message key={i} isUser={m.sender === "User"} {...m} />
+        ))} */}
+        {messages.map((m, i) => (
+          <Message
+            key={i}
+            index={i}
+            speakingMessageId={speakingMessageId}
+            isUser={m.sender === "User"}
+            {...m}
+          />
         ))}
       </ChatArea>
       {isUserTurn && (
@@ -1829,7 +1934,16 @@ export default function DiscussionPage() {
 }
 
 /* ---------- 말풍선 + 프로필 ---------- */
-const Message = ({ isUser, sender, content, stance, mbti }) => {
+const Message = ({
+  isUser,
+  sender,
+  content,
+  stance,
+  mbti,
+  index,
+  speakingMessageId,
+}) => {
+  const isSpeaking = index === speakingMessageId;
   const profileImg = allPersonasMap[mbti || sender] || user;
   return (
     <MessageContainer $isUser={isUser}>
@@ -1839,7 +1953,7 @@ const Message = ({ isUser, sender, content, stance, mbti }) => {
           <MBTILabel>{mbti || sender}</MBTILabel>
         </ProfileBox>
       )}
-      <Bubble $isUser={isUser}>
+      <Bubble $isUser={isUser} $isSpeaking={index === speakingMessageId}>
         <Text>{content}</Text>
         <StanceTag $isPro={stance === "찬성"}>{stance}</StanceTag>
       </Bubble>
@@ -1934,8 +2048,17 @@ const ProfileImg = styled.img`
 
 const Bubble = styled.div`
   max-width: 50%;
-  background: ${({ $isUser }) => ($isUser ? "#000" : "#f1f1f1")};
-  color: ${({ $isUser }) => ($isUser ? "#fff" : "#000")};
+  // background: ${({ $isUser }) => ($isUser ? "#000" : "#f1f1f1")};
+  // color: ${({ $isUser }) => ($isUser ? "#fff" : "#000")};
+  background: ${({ $isUser, $isSpeaking }) =>
+    $isSpeaking
+      ? "#fffde7" /* light highlight */
+      : $isUser
+      ? "#000"
+      : "#f1f1f1"};
+  color: ${({ $isUser, $isSpeaking }) =>
+    $isSpeaking ? "#000" : $isUser ? "#fff" : "#000"};
+  border: ${({ $isSpeaking }) => ($isSpeaking ? "2px solid #fdd835" : "none")};
   padding: 14px 20px;
   border-radius: 20px;
   font-size: 20px;
