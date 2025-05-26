@@ -79,9 +79,9 @@ async function callOpenAI(messages) {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: "gpt-4",
+      model: "gpt-4.1-nano",
       messages,
-      max_tokens: 300,
+      max_tokens: 500,
     }),
   });
   const data = await res.json();
