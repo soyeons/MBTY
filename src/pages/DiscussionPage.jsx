@@ -891,7 +891,7 @@ const personaGenders = {
   moderator: "male",
 };
 
-const OPENAI_API_KEY = process.env.REACT_APP_OPENAI_API_KEY;
+const OPENAI_API_KEY = process.env.REACT_APP_OPEN_AI_API_KEY;
 
 /* ---------- 모델 할당 ---------- */
 const AVAILABLE_MODELS = ["sonar", "sonar-pro", "llama-3.3-70b-versatile"];
@@ -1233,6 +1233,9 @@ const handleRound1 = async (
         return prevMessages;
       });
     } else {
+      if(roles.con.includes("User") && currentTurn > 1) {
+        return;
+      }
       setMessages((prevMessages) => {
         const lastContent = prevMessages[prevMessages.length - 1].content;
         callOpenAI([
@@ -1612,9 +1615,73 @@ export default function DiscussionPage() {
           mbti: "User",
         },
       ]);
-      setIsUserTurn(false);
+
+      if(currentRound === 1 && currentTurn === 0) {
+        // 유저 찬성일 때
+        setMessages((prevMessages) => {
+          const lastContent = prevMessages[prevMessages.length - 1].content;
+          callOpenAI([
+            {
+              role: "system",
+              content: `참가자의 주장을 한마디로 명쾌하게 요약 바람. 형식은 다음과 같이 해줘: "네, 삶의 질이 개선되어 업무시간에 더욱 집중력이 올라갈 것이라는 의견 잘 들었습니다."`,
+            },
+            {
+              role: "user",
+              content: `참가자의 주장을 한마디로 요약해서 소개해주세요. 참가자의 주장: ${lastContent}.`,
+            },
+          ]).then((summary) => {
+            setMessages((prev) => [
+              ...prev,
+              {
+                sender: "moderator",
+                content:
+                  `${summary.content}` +
+                  ` 이제 반대측 ${roles.con[0]} 입론해주시기 바랍니다.`,
+                stance: "중립",
+                mbti: "moderator",
+              },
+            ]);
+            // setCurrentRound((prev) => prev + 1);
+            setIsUserTurn(false);
+            setCurrentTurn((prev) => prev + 1);
+          });
+          return prevMessages;
+        });
+
+      } else {
+        setMessages((prevMessages) => {
+          const lastContent = prevMessages[prevMessages.length - 1].content;
+          callOpenAI([
+            {
+              role: "system",
+              content: `참가자의 주장을 한마디로 명쾌하게 요약 바람. 형식은 다음과 같이 해줘: "네, 삶의 질이 개선되어 업무시간에 더욱 집중력이 올라갈 것이라는 의견 잘 들었습니다."`,
+            },
+            {
+              role: "user",
+              content: `참가자의 주장을 한마디로 요약해서 소개해주세요. 참가자의 주장: ${lastContent}.`,
+            },
+          ]).then((summary) => {
+            setMessages((prev) => [
+              ...prev,
+              {
+                sender: "moderator",
+                content:
+                  `${summary.content}` +
+                  ` 다음은 반론 시간입니다. 각자 의견에 대하여 추가적으로 주장하실 내용이 있거나 상대측 의견에 반박하실 말씀이 있다면 진행해주시면 감사하겠습니다. 찬성측 ${roles.pro[1]} 부터 의견 들어보도록 하겠습니다.`,
+                stance: "중립",
+                mbti: "moderator",
+              },
+            ]);
+            setIsUserTurn(false);
+            setCurrentRound((prev) => prev + 1);
+            setCurrentTurn(0);
+          });
+          return prevMessages;
+        });
+      }
+      
       // advance turn
-      setCurrentTurn((prev) => prev + 1);
+      // setCurrentTurn((prev) => prev + 1);
     }
   };
 
@@ -1695,7 +1762,7 @@ export default function DiscussionPage() {
                   sender: "moderator",
                   content:
                     `${summary.content}` +
-                    ` 다음 반대측 ${roles.con[0]} 발언하겠습니다.`,
+                    ` 다음 반대측 ${roles.con[0]} 발언하겠습니다. 222`,
                   stance: "중립",
                   mbti: "moderator",
                 },
