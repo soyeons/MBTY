@@ -103,7 +103,7 @@ async function callPerplexity(messages, model) {
         model: model,
         messages,
         stream: false,
-        max_tokens: 100,
+        max_tokens: 300,
       }),
     });
 
@@ -140,7 +140,7 @@ async function callGroq(messages, model) {
         model: model,
         messages,
         temperature: 0.7,
-        max_tokens: 100,
+        max_tokens: 300,
       }),
     });
 
