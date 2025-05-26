@@ -260,7 +260,7 @@ const handleRound1 = async (topic, roles, currentTurn, setMessages, setIsUserTur
     const background = await callOpenAI([
       {
         role: "system",
-        content: `당신은 토론의 진행자입니다. 최근 여러 회사들은 원격 근무를 기본으로 하고 있지요~~~(등 관련 내용 배경 설명) 의 형식으로 주제에 대해 토론 참가자들이 engage 할 수 있도록 한마디 배경에 대한 한마디로 간단하게만 말해주세요.`
+        content: `당신은 토론의 진행자입니다. 최근 여러 회사들은 어떤 장점때문에 원격 근무를 기본으로 하고 있지요~~~(등 관련 내용 배경 설명) 의 형식으로 주제에 대해 토론 참가자들이 engage 할 수 있도록 한마디 배경에 대한 한문장으로만 소개해주세요.`
       },
       {
         role: "user",
@@ -279,15 +279,63 @@ const handleRound1 = async (topic, roles, currentTurn, setMessages, setIsUserTur
       setIsUserTurn(true);
     } else {
       await handleAIMessage(topic, roles.pro[0], "찬성", setMessages, roles, 1, speakerModels, messages);
+      
       setCurrentTurn(prev => prev + 1);
     }
   } else {
     if (roles.pro.includes("User")) {
       await handleAIMessage(topic, roles.con[0], "반대", setMessages, roles, 1, speakerModels, messages);
-      setCurrentRound(prev => prev + 1);
-      setCurrentTurn(0);
+
+      setMessages(prevMessages => {
+        const lastContent = prevMessages[prevMessages.length - 1].content;
+        callOpenAI([
+          {
+            role: "system",
+            content: `참가자의 주장을 한마디로 명쾌하게 요약 바람. 형식은 다음과 같이 해줘: "네, 삶의 질이 개선되어 업무시간에 더욱 집중력이 올라갈 것이라는 의견 잘 들었습니다."`
+          },
+          {
+            role: "user",
+            content: `참가자의 주장을 한마디로 요약해서 소개해주세요. 참가자의 주장: ${lastContent}.`
+          }
+        ]).then(summary => {
+          setMessages(prev => [...prev, {
+            sender: "moderator",
+            content: `${summary.content}`+ ` 다음은 반론 시간입니다. 각자 의견에 대하여 추가적으로 주장하실 내용이 있거나 상대측 의견에 반박하실 말씀이 있다면 진행해주시면 감사하겠습니다. 찬성측 ${roles.pro[1]} 부터 의견 들어보도록 하겠습니다.`,
+            stance: "중립",
+            mbti: "moderator",
+          }]);
+          setCurrentRound(prev => prev + 1);
+          setCurrentTurn(0);
+        });
+        
+        return prevMessages;
+      });
+      
     } else {
-      setIsUserTurn(true);
+      setMessages(prevMessages => {
+        const lastContent = prevMessages[prevMessages.length - 1].content;
+        callOpenAI([
+          {
+            role: "system",
+            content: `참가자의 주장을 한마디로 명쾌하게 요약 바람. 형식은 다음과 같이 해줘: "네, 삶의 질이 개선되어 업무시간에 더욱 집중력이 올라갈 것이라는 의견 잘 들었습니다."`
+          },
+          {
+            role: "user",
+            content: `참가자의 주장을 한마디로 요약해서 소개해주세요. 참가자의 주장: ${lastContent}.`
+          }
+        ]).then(summary => {
+          setMessages(prev => [...prev, {
+            sender: "moderator",
+            content: `${summary.content}`+ ` 다음 반대측 ${roles.con[0]} 발언하겠습니다.`,
+            stance: "중립",
+            mbti: "moderator",
+          }]);
+        // setCurrentTurn(prev => prev + 1);
+        setIsUserTurn(true);
+
+        });
+        return prevMessages;
+      });
     }
   }
 };
@@ -417,11 +465,59 @@ export default function DiscussionPage() {
         if(currentTurn === 1) {
           // 입론은 턴이 두번밖에 없으니 바로 다음 라운드로 넘기기.
           console.log("입론 종료");
-          setCurrentRound(prev => prev + 1);
-          setCurrentTurn(0);
+          setMessages(prevMessages => {
+            const lastContent = prevMessages[prevMessages.length - 1].content;
+            callOpenAI([
+              {
+                role: "system",
+                content: `참가자의 주장을 한마디로 명쾌하게 요약 바람. 형식은 다음과 같이 해줘: "네, 삶의 질이 개선되어 업무시간에 더욱 집중력이 올라갈 것이라는 의견 잘 들었습니다."`
+              },
+              {
+                role: "user",
+                content: `참가자의 주장을 한마디로 요약해서 소개해주세요. 참가자의 주장: ${lastContent}.`
+              }
+            ]).then(summary => {
+              setMessages(prev => [...prev, {
+                sender: "moderator",
+                content: `${summary.content}`+ ` 다음은 반론 시간입니다. 각자 의견에 대하여 추가적으로 주장하실 내용이 있거나 상대측 의견에 반박하실 말씀이 있다면 진행해주시면 감사하겠습니다. 찬성측 ${roles.pro[1]} 부터 의견 들어보도록 하겠습니다.`,
+                stance: "중립",
+                mbti: "moderator",
+              }]);
+              setCurrentRound(prev => prev + 1);
+              setCurrentTurn(0);
+            });
+            return prevMessages;
+          });
+          
         }
         else {
-          setCurrentTurn(prev => prev + 1);
+          // 찬성일 때
+
+          setMessages(prevMessages => {
+            const lastContent = prevMessages[prevMessages.length - 1].content;
+            callOpenAI([
+              {
+                role: "system",
+                content: `참가자의 주장을 한마디로 명쾌하게 요약 바람. 형식은 다음과 같이 해줘: "네, 삶의 질이 개선되어 업무시간에 더욱 집중력이 올라갈 것이라는 의견 잘 들었습니다."`
+              },
+              {
+                role: "user",
+                content: `참가자의 주장을 한마디로 요약해서 소개해주세요. 참가자의 주장: ${lastContent}.`
+              }
+            ]).then(summary => {
+              setMessages(prev => [...prev, {
+                sender: "moderator",
+                content: `${summary.content}`+ ` 다음 반대측 ${roles.con[0]} 발언하겠습니다.`,
+                stance: "중립",
+                mbti: "moderator",
+              }]);
+            setCurrentTurn(prev => prev + 1);
+            });
+            return prevMessages;
+          });
+          
+
+
         }
         break;
       case 2:
