@@ -166,11 +166,11 @@ async function callGroq(messages, model) {
 const createDebatePrompt = (topic, speaker, stance, currentRound) => {
   switch(currentRound) {
     case 1:
-      return `"${topic}" 주제의 토론에 대해 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 매우 간결한 한마디로 시작 발언하시오.`;
+      return `"${topic}" 주제의 토론에 대해 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 매우 간결한 한마디로 시작 발언하시오. 한국어로만 말하시오.`;
     case 2:
-      return `직전 주장에 대해서 ${speaker} 성향을 말투에 반영하여 매우 간결하게 확실히 반박하시오.`;
+      return `직전 주장에 대해서 ${speaker} 성향을 말투에 반영하여 매우 간결하게 확실히 반박하시오. 한국어로만 말하시오.`;
     case 3:
-      return `지금까지의 대화 흐름을 보고 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 한마디로 최후변론을 해주시오.`;
+      return `지금까지의 대화 흐름을 보고 ${stance} 입장으로 ${speaker} 성향을 말투에 반영하여 한마디로 최후변론을 해주시오. 한국어로만 말하시오.`;
     default:
       return "";
   }
