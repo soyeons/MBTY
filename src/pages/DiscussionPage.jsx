@@ -24,6 +24,7 @@ import esfj from "../assets/ESFJ.png";
 import isfp from "../assets/ISFP.png";
 import entp from "../assets/ENTP.png";
 import user from "../assets/user.png";
+import moderator from "../assets/moderator.jpg"
 
 const allPersonasMap = {
   ISFJ: isfj,
@@ -43,9 +44,10 @@ const allPersonasMap = {
   ISFP: isfp,
   ENTP: entp,
   User: user,
+  moderator: moderator
 };
 
-const OPENAI_API_KEY = process.env.REACT_APP_OPENAI_API_KEY;
+const OPENAI_API_KEY = process.env.REACT_APP_OPEN_AI_API_KEY;
 
 /* ---------- 모델 할당 ---------- */
 const AVAILABLE_MODELS = ["sonar", "sonar-pro", "llama-3.3-70b-versatile"];
@@ -247,6 +249,32 @@ const handleAIMessage = async (topic, speaker, stance, setMessages, roles, curre
 /* ---------- 라운드별 핸들러 ---------- */
 const handleRound1 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setCurrentRound, speakerModels, messages) => {
   if (currentTurn === 0) {
+
+    setMessages(prev => [{
+      sender: "moderator",
+      content: `안녕하세요. 오늘 토론은 찬성 2인 반대 2인이 참여합니다. 각 팀별로 입론 1분, 반론 5분, 최종발언 1분의 시간이 주어지고, 발언 순서는 제가 안내하도록 하겠습니다. 그럼 시작하겠습니다.`,
+      stance: "중립",
+      mbti: "moderator",
+    }]);
+
+    const background = await callOpenAI([
+      {
+        role: "system",
+        content: `당신은 토론의 진행자입니다. 최근 여러 회사들은 원격 근무를 기본으로 하고 있지요~~~(등 관련 내용 배경 설명) 의 형식으로 주제에 대해 토론 참가자들이 engage 할 수 있도록 한마디 배경에 대한 한마디로 간단하게만 말해주세요.`
+      },
+      {
+        role: "user",
+        content: `주제 "${topic}"에 대한 배경 설명을 해주세요.`
+      }
+    ]);
+
+    setMessages(prev => [...prev, {
+      sender: "moderator",
+      content: `오늘의 토론 주제는 "${topic}" 입니다. ${background.content}`+ ` 이제 입론을 진행하겠습니다. 주제에 대한 개인 의견을 제시해주시길 바랍니다. 찬성측 ${roles.pro[0]}부터 발언하겠습니다!`,
+      stance: "중립",
+      mbti: "moderator",
+    }]);
+
     if (roles.pro.includes("User")) {
       setIsUserTurn(true);
     } else {
