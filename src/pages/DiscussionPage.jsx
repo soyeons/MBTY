@@ -405,7 +405,37 @@ const handleRound2 = async (topic, roles, currentTurn, setMessages, setIsUserTur
 
 const handleRound3 = async (topic, roles, currentTurn, setMessages, setIsUserTurn, setCurrentTurn, setShowVoteModal, speakerModels, messages) => {
   if (currentTurn >= 2) {
-    setShowVoteModal(true);
+
+      setMessages(prevMessages => {
+      const lastContent = prevMessages[prevMessages.length - 1].content;
+      // 전체 토론 내용을 문자열로 변환
+      const discussionContent = prevMessages
+        .filter(msg => msg.sender !== "moderator") // 사회자 메시지 제외
+        .map(msg => `${msg.sender}(${msg.stance}): ${msg.content}`)
+        .join('\n');
+
+      callOpenAI([
+        {
+          role: "system",
+          content: `당신은 토론의 사회자입니다. 전체 토론 내용을 바탕으로 토론의 핵심 논점과 결론을 간단히 요약해주세요. 
+          형식은 다음과 같이 해주세요: "토론을 통해 [핵심 논점]에 대해 [결론]이라는 의견이 모아진 것 같습니다."`
+        },
+        {
+          role: "user",
+          content: `다음은 전체 토론 내용입니다. 이를 바탕으로 토론을 요약해주세요:\n\n${discussionContent}`
+        }
+      ]).then(summary => {
+        setMessages(prev => [...prev, {
+          sender: "moderator",
+          content: `네 분 모두 고생 많으셨습니다. 오늘 토론은 "${topic}" 라는 주제로 논의됐습니다. ${summary.content} 마지막으로 본 토론에 대해 어느 측의 주장이 더욱 와닿았고, 토론을 잘 진행한 것 같은지 투표를 진행하도록 하겠습니다.`,
+          stance: "중립",
+          mbti: "moderator",
+        }]);
+        setShowVoteModal(true);
+      });
+      return prevMessages;
+    }); 
+    
     return;
   }
 
