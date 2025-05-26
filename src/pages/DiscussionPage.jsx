@@ -1715,6 +1715,9 @@ export default function DiscussionPage() {
       if(currentRound === 3 && roles.pro.includes("User")) {
         setCurrentTurn((prev) => prev + 1);
       }
+      else if(currentRound === 3 && roles.con.includes("User")) {
+        setShowVoteModal(true);
+      }
       
       // advance turn
       // setCurrentTurn((prev) => prev + 1);
