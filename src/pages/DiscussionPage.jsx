@@ -1146,8 +1146,8 @@ const handleRound1 = async (
       {
         sender: "moderator",
         content: `안녕하세요. 오늘 토론은 찬성 2인 반대 2인이 참여합니다. 각 팀별로 입론 1분, 반론 5분, 최종발언 1분의 시간이 주어지고, 발언 순서는 제가 안내하도록 하겠습니다. 그럼 시작하겠습니다.`,
-        stance: "중립",
-        mbti: "moderator",
+        stance: "사회자",
+        mbti: "사회자",
       },
     ]);
 
@@ -1169,8 +1169,8 @@ const handleRound1 = async (
         content:
           `오늘의 토론 주제는 "${topic}" 입니다. ${background.content}` +
           ` 이제 입론을 진행하겠습니다. 주제에 대한 개인 의견을 제시해주시길 바랍니다. 찬성측 ${roles.pro[0]}부터 발언하겠습니다!`,
-        stance: "중립",
-        mbti: "moderator",
+        stance: "사회자",
+        mbti: "사회자",
       },
     ]);
 
@@ -1222,8 +1222,8 @@ const handleRound1 = async (
               content:
                 `${summary.content}` +
                 ` 다음은 반론 시간입니다. 각자 의견에 대하여 추가적으로 주장하실 내용이 있거나 상대측 의견에 반박하실 말씀이 있다면 진행해주시면 감사하겠습니다. 찬성측 ${roles.pro[1]} 부터 의견 들어보도록 하겠습니다.`,
-              stance: "중립",
-              mbti: "moderator",
+              stance: "사회자",
+              mbti: "사회자",
             },
           ]);
           setCurrentRound((prev) => prev + 1);
@@ -1255,8 +1255,8 @@ const handleRound1 = async (
               content:
                 `${summary.content}` +
                 ` 다음 반대측 ${roles.con[0]} 발언하겠습니다.`,
-              stance: "중립",
-              mbti: "moderator",
+              stance: "사회자",
+              mbti: "사회자",
             },
           ]);
           // setCurrentTurn(prev => prev + 1);
@@ -1332,8 +1332,8 @@ const handleRound2 = async (
             content: `${summary.content} 해당 의견에 대해 ${
               round2Order[currentTurn + 1]
             }님 의견 있으실까요?`,
-            stance: "중립",
-            mbti: "moderator",
+            stance: "사회자",
+            mbti: "사회자",
           },
         ]);
         setCurrentTurn((prev) => prev + 1);
@@ -1348,8 +1348,8 @@ const handleRound2 = async (
       {
         sender: "moderator",
         content: `해당 주제에 대한 양측 의견 잘 들었습니다. 각 진영은 마지막으로 의견 정리해서 최종변론 진행해주세요. 찬성측 ${roles.pro[0]}부터 발언해주세요.`,
-        stance: "중립",
-        mbti: "moderator",
+        stance: "사회자",
+        mbti: "사회자",
       },
     ]);
   }
@@ -1393,8 +1393,8 @@ const handleRound3 = async (
           {
             sender: "moderator",
             content: `네 분 모두 고생 많으셨습니다. 오늘 토론은 "${topic}" 라는 주제로 논의됐습니다. ${summary.content} 마지막으로 본 토론에 대해 어느 측의 주장이 더욱 와닿았고, 토론을 잘 진행한 것 같은지 투표를 진행하도록 하겠습니다.`,
-            stance: "중립",
-            mbti: "moderator",
+            stance: "사회자",
+            mbti: "사회자",
           },
         ]);
         setShowVoteModal(true);
@@ -1466,20 +1466,43 @@ export default function DiscussionPage() {
 
   const [speakingMessageId, setSpeakingMessageId] = useState(null);
 
+  const prevLenRef = useRef(0);
+
   /* ---------- 새 메시지 추가 시 TTS 큐에 등록 ---------- */
   useEffect(() => {
     if (messages.length === 0) return;
-    const last = messages[messages.length - 1];
-    if (last.sender !== "User") {
-      const gender = personaGenders[last.mbti || last.sender];
-      const voice = TTS_VOICE_MAPPING[gender] || TTS_VOICE_MAPPING.female;
-      // include the message index so we know which bubble to highlight
-      setSpeechQueue((q) => [
-        ...q,
-        { text: last.content, voice, id: messages.length - 1 },
-      ]);
-      // setSpeechQueue((q) => [...q, { text: last.content, voice }]);
-    }
+
+    const newMessages = messages.slice(prevLenRef.current);
+    const startIndex  = messages.length - newMessages.length;
+    // const last = messages[messages.length - 1];
+
+    // if (last.sender !== "User") {
+    //   const gender = personaGenders[last.mbti || last.sender];
+    //   const voice = TTS_VOICE_MAPPING[gender] || TTS_VOICE_MAPPING.female;
+    //   // include the message index so we know which bubble to highlight
+    //   setSpeechQueue((q) => [
+    //     ...q,
+    //     { text: last.content, voice, id: messages.length - 1 },
+    //   ]);
+    //   // setSpeechQueue((q) => [...q, { text: last.content, voice }]);
+    // }
+
+    newMessages.forEach((m, idx) => {
+      if (m.sender !== "User") {
+        const gender = personaGenders[m.mbti || m.sender];
+        const voice  = TTS_VOICE_MAPPING[gender] || TTS_VOICE_MAPPING.female;
+        setSpeechQueue(q => [
+          ...q,
+          {
+            text: m.content,
+            voice,
+            id: startIndex + idx, // 메시지 인덱스
+          },
+        ]);
+      }
+    });
+
+    prevLenRef.current = messages.length;
   }, [messages]);
 
   /* ---------- 큐에서 순차 재생 ---------- */
@@ -1637,8 +1660,8 @@ export default function DiscussionPage() {
                 content:
                   `${summary.content}` +
                   ` 이제 반대측 ${roles.con[0]} 입론해주시기 바랍니다.`,
-                stance: "중립",
-                mbti: "moderator",
+                stance: "사회자",
+                mbti: "사회자",
               },
             ]);
             // setCurrentRound((prev) => prev + 1);
@@ -1668,8 +1691,8 @@ export default function DiscussionPage() {
                 content:
                   `${summary.content}` +
                   ` 다음은 반론 시간입니다. 각자 의견에 대하여 추가적으로 주장하실 내용이 있거나 상대측 의견에 반박하실 말씀이 있다면 진행해주시면 감사하겠습니다. 찬성측 ${roles.pro[1]} 부터 의견 들어보도록 하겠습니다.`,
-                stance: "중립",
-                mbti: "moderator",
+                stance: "사회자",
+                mbti: "사회자",
               },
             ]);
             setIsUserTurn(false);
@@ -1700,8 +1723,8 @@ export default function DiscussionPage() {
                 content:
                   `${summary.content}` +
                   ` 상대측 ${roles.con[0]} 의견 있으실까요?`,
-                stance: "중립",
-                mbti: "moderator",
+                stance: "사회자",
+                mbti: "사회자",
               },
             ]);
             // setCurrentRound((prev) => prev + 1);
@@ -1731,8 +1754,8 @@ export default function DiscussionPage() {
                 content:
                   `${summary.content}` +
                   ` 상대측 ${roles.pro[0]} 의견 있으실까요?`,
-                stance: "중립",
-                mbti: "moderator",
+                stance: "사회자",
+                mbti: "사회자",
               },
             ]);
             // setCurrentRound((prev) => prev + 1);
@@ -1771,8 +1794,8 @@ export default function DiscussionPage() {
               {
                 sender: "moderator",
                 content: `네 분 모두 고생 많으셨습니다. 오늘 토론은 "${topic}" 라는 주제로 논의됐습니다. ${summary.content} 마지막으로 본 토론에 대해 어느 측의 주장이 더욱 와닿았고, 토론을 잘 진행한 것 같은지 투표를 진행하도록 하겠습니다.`,
-                stance: "중립",
-                mbti: "moderator",
+                stance: "사회자",
+                mbti: "사회자",
               },
             ]);
             setShowVoteModal(true);
@@ -1834,8 +1857,8 @@ export default function DiscussionPage() {
                   content:
                     `${summary.content}` +
                     ` 다음은 반론 시간입니다. 각자 의견에 대하여 추가적으로 주장하실 내용이 있거나 상대측 의견에 반박하실 말씀이 있다면 진행해주시면 감사하겠습니다. 찬성측 ${roles.pro[1]} 부터 의견 들어보도록 하겠습니다.`,
-                  stance: "중립",
-                  mbti: "moderator",
+                  stance: "사회자",
+                  mbti: "사회자",
                 },
               ]);
               setCurrentRound((prev) => prev + 1);
@@ -1865,8 +1888,8 @@ export default function DiscussionPage() {
                   content:
                     `${summary.content}` +
                     ` 다음 반대측 ${roles.con[0]} 발언하겠습니다. 222`,
-                  stance: "중립",
-                  mbti: "moderator",
+                  stance: "사회자",
+                  mbti: "사회자",
                 },
               ]);
               setCurrentTurn((prev) => prev + 1);
@@ -1906,8 +1929,8 @@ export default function DiscussionPage() {
               {
                 sender: "moderator",
                 content: `${summary.content} 해당 의견에 대한 반박 부탁드립니다.`,
-                stance: "중립",
-                mbti: "moderator",
+                stance: "사회자",
+                mbti: "사회자",
               },
             ]);
             setCurrentTurn((prev) => prev + 1);
@@ -2124,7 +2147,7 @@ const Message = ({
       )}
       <Bubble $isUser={isUser} $isSpeaking={index === speakingMessageId}>
         <Text>{content}</Text>
-        <StanceTag $isPro={stance === "찬성"}>{stance}</StanceTag>
+        <StanceTag $stance={stance}>{stance}</StanceTag>
       </Bubble>
     </MessageContainer>
   );
@@ -2241,7 +2264,12 @@ const StanceTag = styled.div`
   font-size: 15px;
   margin-top: 6px;
   text-align: right;
-  color: ${({ $isPro }) => ($isPro ? "#4caf50" : "#f44336")};
+  color: ${({ $stance }) =>
+    $stance === "찬성"
+      ? "#4caf50"
+      : $stance === "반대"
+      ? "#f44336"
+      : "#2196f3"};
   font-weight: 800;
 `;
 
