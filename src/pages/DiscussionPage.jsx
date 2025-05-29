@@ -1994,7 +1994,7 @@ export default function DiscussionPage() {
   return (
     <PageContainer>
       <Header>📢 토론 주제: "{topic}"</Header>
-      <RoundIndicator>{roundLabels[currentRound]}</RoundIndicator>
+      {/* <RoundIndicator>{roundLabels[currentRound]}</RoundIndicator> */}
 
       <ChatArea>
         {/* {messages.map((m, i) => (
@@ -2114,7 +2114,7 @@ export default function DiscussionPage() {
           🗳️ 투표 결과 🗳️
         </h3>
         <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24 }}>
-          찬성 : 3표, 반대 : 1표
+          찬성 : 3표, 반대 : 2표
         </h2>
         <p style={{ marginBottom: 32, fontSize: 18 }}>
           새로운 토론을 시작하시겠습니까?
@@ -2201,16 +2201,16 @@ const Header = styled.div`
   justify-content: center;
 `;
 
-const RoundIndicator = styled.div`
-  font-size: 30px;
-  font-weight: 700;
-  padding-top: 20px;
-  padding-bottom: 20px;
-  color: #ffffff;
-  background-color: #000000;
-  display: flex;
-  justify-content: center;
-`;
+// const RoundIndicator = styled.div`
+//   font-size: 30px;
+//   font-weight: 700;
+//   padding-top: 20px;
+//   padding-bottom: 20px;
+//   color: #ffffff;
+//   background-color: #000000;
+//   display: flex;
+//   justify-content: center;
+// `;
 
 const ChatArea = styled.div`
   flex: 1;
