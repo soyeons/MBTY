@@ -1365,6 +1365,7 @@ const handleRound3 = async (
   setIsUserTurn,
   setCurrentTurn,
   setShowVoteModal,
+  setPendingVoteModal,
   speakerModels,
   messages
 ) => {
@@ -1397,7 +1398,9 @@ const handleRound3 = async (
             mbti: "사회자",
           },
         ]);
-        setShowVoteModal(true);
+        // setShowVoteModal(true);
+        // setPendingVoteModal(true);
+
       });
       return prevMessages;
     });
@@ -1454,6 +1457,7 @@ export default function DiscussionPage() {
   const [isUserTurn, setIsUserTurn] = useState(false);
   const [showEndModal, setShowEndModal] = useState(false);
   const [showVoteModal, setShowVoteModal] = useState(false);
+  const [pendingVoteModal, setPendingVoteModal] = useState(false);
   const [discussionHistory, setDiscussionHistory] = useState([]);
   const [speakerModels, setSpeakerModels] = useState({});
   const [isRecording, setIsRecording] = useState(false);
@@ -1531,6 +1535,30 @@ export default function DiscussionPage() {
       });
   }, [speechQueue, isSpeaking]);
 
+  /* ---------- 마지막 사회자 멘트 감지 ---------- */
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    const last = messages[messages.length - 1];
+    const isClosingModerator =
+      last.sender === "moderator" &&
+      last.content.includes("투표를 진행");
+
+    if (isClosingModerator) {
+      setPendingVoteModal(true);      // 이제야 flag ON
+    }
+  }, [messages]);
+
+
+  useEffect(() => {
+    // TTS가 재생 중이 아니고, 대기 큐도 비었고, 모달 대기 플래그가 켜져 있으면
+    if (!isSpeaking && speechQueue.length === 0 && pendingVoteModal) {
+      setShowVoteModal(true);      // 실제 모달 띄우기
+      setPendingVoteModal(false);  // 플래그 해제
+    }
+  }, [isSpeaking, speechQueue.length, pendingVoteModal]);
+
+
   /* ---------- 유틸 ---------- */
   useEffect(() => {
     if (!topic || !personas) return;
@@ -1583,6 +1611,7 @@ export default function DiscussionPage() {
             setIsUserTurn,
             setCurrentTurn,
             setShowVoteModal,
+            setPendingVoteModal,
             speakerModels,
             messages
           );
@@ -1798,7 +1827,8 @@ export default function DiscussionPage() {
                 mbti: "사회자",
               },
             ]);
-            setShowVoteModal(true);
+            // setShowVoteModal(true);
+            // setPendingVoteModal(true);
           });
           return prevMessages;
         });
